@@ -1,10 +1,10 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, inject, signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Api } from '../../core/api';
+import { Api, apiErrMsg } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
-import { Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../core/models';
+import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../../core/models';
 
 @Component({
   selector: 'app-project-detail',
@@ -14,7 +14,7 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../cor
     .tabs { display: flex; gap: 4px; margin: 14px 0; border-bottom: 1px solid var(--border); }
     .tabs button { background: none; border: none; color: var(--muted); padding: 10px 14px; cursor: pointer; font: inherit; border-bottom: 2px solid transparent; }
     .tabs button.on { color: var(--text); border-bottom-color: var(--primary); }
-    model-viewer { width: 100%; height: 440px; background: #0b0e13; border-radius: 8px; }
+    model-viewer { width: 100%; height: 520px; border-radius: 16px; background: #11151c radial-gradient(120% 120% at 50% 0%, #1c2430, #0a0d12); }
   `],
   template: `
     <div class="page">
@@ -27,11 +27,11 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../cor
         <p class="muted">{{ p.description }}</p>
 
         <div class="row wrap" style="margin-bottom:6px">
-          <a class="btn ghost sm" [routerLink]="['/projects', id, 'budget']">💰 Presupuesto</a>
-          <a class="btn ghost sm" [routerLink]="['/projects', id, 'risk']">⚠️ Riesgos</a>
-          <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">✏️ Editar 3D</a>
-          <a class="btn ghost sm" [routerLink]="['/projects', id, 'versions']">🕑 Versiones</a>
-          <a class="btn ghost sm" routerLink="/ai-design">🤖 Diseño IA</a>
+          <a class="btn ghost sm" [routerLink]="['/projects', id, 'budget']">Presupuesto</a>
+          <a class="btn ghost sm" [routerLink]="['/projects', id, 'risk']">Riesgos</a>
+          <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">Editar 3D</a>
+          <a class="btn ghost sm" [routerLink]="['/projects', id, 'versions']">Versiones</a>
+          <a class="btn ghost sm" routerLink="/ai-design">Diseño IA</a>
         </div>
 
         <div class="tabs">
@@ -44,7 +44,7 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../cor
           <div class="card" style="margin-bottom:16px">
             <h3>Modelo 3D actual</h3>
             @if (currentModel(); as m) {
-              @if (m.glb_url) { <model-viewer [attr.src]="m.glb_url" camera-controls auto-rotate ar></model-viewer> }
+              @if (m.glb_url) { <model-viewer [attr.src]="m.glb_url" camera-controls interaction-prompt="none" shadow-intensity="1" shadow-softness="0.7" environment-image="neutral" exposure="1.05" tone-mapping="neutral" camera-orbit="45deg 60deg auto" min-camera-orbit="auto 25deg auto" max-camera-orbit="auto 88deg auto" field-of-view="35deg" min-field-of-view="20deg" max-field-of-view="55deg" auto-rotate auto-rotate-delay="800" rotation-per-second="18deg" ar ar-modes="webxr scene-viewer quick-look"></model-viewer> }
               <div class="muted" style="margin-top:8px">{{ m.element_count }} elementos · modelo {{ m.model_name || '—' }}
                 · <a [attr.href]="m.glb_url" target="_blank">descargar .glb</a>
                 · <a [routerLink]="['/projects', id, 'edit3d']">editar</a></div>
@@ -88,7 +88,16 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../cor
           <div class="card" style="margin-bottom:16px">
             <h3>Colaboradores</h3>
             <form class="row wrap" (ngSubmit)="invite()">
-              <input class="input" style="width:auto; flex:1" placeholder="email del colaborador" name="email" [(ngModel)]="inviteEmail">
+              @if (invitable().length) {
+                <select class="input" style="width:auto; flex:1" name="email" [(ngModel)]="inviteEmail">
+                  <option value="">— elige un colaborador —</option>
+                  @for (u of invitable(); track u.id) {
+                    <option [value]="u.email">{{ u.full_name || u.email }} · {{ u.role }}</option>
+                  }
+                </select>
+              } @else {
+                <input class="input" style="width:auto; flex:1" placeholder="email del colaborador" name="email" [(ngModel)]="inviteEmail">
+              }
               <select [(ngModel)]="inviteRole" name="role" style="width:auto">
                 <option value="editor">editor</option><option value="viewer">lector</option>
               </select>
@@ -134,6 +143,13 @@ export class ProjectDetail implements OnInit {
   models = signal<Model3D[]>([]);
   members = signal<Member[]>([]);
   comments = signal<Comment[]>([]);
+  allUsers = signal<User[]>([]);
+  // Lista de usuarios para elegir como colaborador (excluye al dueño/uno mismo y a los ya miembros).
+  invitable = computed(() => {
+    const taken = new Set(this.members().map(m => m.user_email));
+    const me = this.auth.user()?.email;
+    return this.allUsers().filter(u => u.is_active !== false && u.email !== me && !taken.has(u.email));
+  });
 
   currentModel = signal<Model3D | null>(null);
   detectorByPlan: Record<number, string> = {};
@@ -155,6 +171,8 @@ export class ProjectDetail implements OnInit {
     this.loadModels();
     this.api.get<Member[]>(`/projects/${this.id}/members/`).subscribe(m => this.members.set(m));
     this.api.page<Comment>('/comments/', { project: this.id }).subscribe(r => this.comments.set(r.items));
+    // Carga usuarios para el selector de colaboradores; si no hay permiso (no superadmin), cae al input de email.
+    this.api.page<User>('/users/').subscribe({ next: r => this.allUsers.set(r.items), error: () => {} });
   }
 
   private loadPlans(): void {
@@ -181,7 +199,7 @@ export class ProjectDetail implements OnInit {
     fd.append('file', this.file);
     this.api.postForm<Plan>('/plans/', fd).subscribe({
       next: p => { this.plans.update(l => [p, ...l]); this.detectorByPlan[p.id] = 'mock'; this.uploading.set(false); this.file = null; },
-      error: e => { this.error.set(e.detail?.file?.[0] || e.detail || 'No se pudo subir.'); this.uploading.set(false); },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo subir.')); this.uploading.set(false); },
     });
   }
 
@@ -203,7 +221,7 @@ export class ProjectDetail implements OnInit {
     fd.append('file', this.glbFile);
     this.api.postForm<Model3D>('/models3d/import/', fd).subscribe({
       next: () => { this.importing.set(false); this.glbFile = null; this.loadModels(); },
-      error: e => { this.importError.set(e.detail?.file?.[0] || e.detail || 'No se pudo importar.'); this.importing.set(false); },
+      error: e => { this.importError.set(apiErrMsg(e, 'No se pudo importar.')); this.importing.set(false); },
     });
   }
 

@@ -12,7 +12,7 @@ import { DesignRequest, Project } from '../../core/models';
     .tabs { display:flex; gap:4px; margin:14px 0; border-bottom:1px solid var(--border); }
     .tabs button { background:none; border:none; color:var(--muted); padding:10px 14px; cursor:pointer; font:inherit; border-bottom:2px solid transparent; }
     .tabs button.on { color:var(--text); border-bottom-color:var(--primary); }
-    model-viewer { width:100%; height:380px; background:#0b0e13; border-radius:8px; }
+    model-viewer { width:100%; height:520px; border-radius:16px; background:#11151c radial-gradient(120% 120% at 50% 0%, #1c2430, #0a0d12); }
     .msg { padding:8px 12px; border-radius:8px; margin:6px 0; max-width:80%; }
     .msg.user { background:var(--primary); color:#fff; margin-left:auto; }
     .msg.assistant { background:var(--surface-2); }
@@ -39,9 +39,9 @@ import { DesignRequest, Project } from '../../core/models';
       </div>
 
       <div class="tabs">
-        <button [class.on]="mode()==='text'" (click)="mode.set('text')">📝 Texto</button>
-        <button [class.on]="mode()==='audio'" (click)="mode.set('audio')">🎙️ Audio</button>
-        <button [class.on]="mode()==='assistant'" (click)="mode.set('assistant')">💬 Asistente</button>
+        <button [class.on]="mode()==='text'" (click)="mode.set('text')">Texto</button>
+        <button [class.on]="mode()==='audio'" (click)="mode.set('audio')">Audio</button>
+        <button [class.on]="mode()==='assistant'" (click)="mode.set('assistant')">Asistente</button>
       </div>
 
       @if (error()) { <div class="alert">{{ error() }}</div> }
@@ -83,7 +83,7 @@ import { DesignRequest, Project } from '../../core/models';
           <div class="row spread"><h3 style="margin:0">Resultado</h3><span class="badge" [class]="r.status">{{ r.status }}</span></div>
           @if (r.transcript) { <p class="muted">Transcripción: "{{ r.transcript }}"</p> }
           @if (r.model?.glb_url) {
-            <model-viewer [attr.src]="r.model!.glb_url" camera-controls auto-rotate ar></model-viewer>
+            <model-viewer [attr.src]="r.model!.glb_url" camera-controls interaction-prompt="none" shadow-intensity="1" shadow-softness="0.7" environment-image="neutral" exposure="1.05" tone-mapping="neutral" camera-orbit="45deg 60deg auto" min-camera-orbit="auto 25deg auto" max-camera-orbit="auto 88deg auto" field-of-view="35deg" min-field-of-view="20deg" max-field-of-view="55deg" auto-rotate auto-rotate-delay="800" rotation-per-second="18deg" ar ar-modes="webxr scene-viewer quick-look"></model-viewer>
             <div class="muted" style="margin-top:6px">{{ r.model!.element_count }} elementos
               · <a [attr.href]="r.model!.glb_url" target="_blank">descargar .glb</a>
               · <a [routerLink]="['/projects', r.project]">ver proyecto</a></div>

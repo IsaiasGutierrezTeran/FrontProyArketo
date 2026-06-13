@@ -41,17 +41,17 @@ import { Auth } from '../core/auth/auth';
         <div class="brand"><div class="logo">A</div>Ar<span>keto</span></div>
         <div class="nav-label">General</div>
         <nav>
-          <a routerLink="/dashboard" routerLinkActive="active"><span class="ic">▦</span> Dashboard</a>
-          <a routerLink="/projects" routerLinkActive="active"><span class="ic">▤</span> Proyectos</a>
-          <a routerLink="/ai-design" routerLinkActive="active"><span class="ic">✦</span> Diseño IA</a>
+          <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+          <a routerLink="/projects" routerLinkActive="active">Proyectos</a>
+          <a routerLink="/ai-design" routerLinkActive="active">Diseño IA</a>
         </nav>
         <div class="nav-label">Cuenta</div>
         <nav>
-          <a routerLink="/billing" routerLinkActive="active"><span class="ic">◈</span> Suscripción</a>
-          <a routerLink="/profile" routerLinkActive="active"><span class="ic">☺</span> Perfil</a>
+          <a routerLink="/billing" routerLinkActive="active">Suscripción</a>
+          <a routerLink="/profile" routerLinkActive="active">Perfil</a>
           @if (auth.hasRole('superadmin')) {
-            <a routerLink="/admin/users" routerLinkActive="active"><span class="ic">⛨</span> Usuarios</a>
-            <a routerLink="/admin/materials" routerLinkActive="active"><span class="ic">▥</span> Materiales</a>
+            <a routerLink="/admin/users" routerLinkActive="active">Usuarios</a>
+            <a routerLink="/admin/materials" routerLinkActive="active">Materiales</a>
           }
         </nav>
         <div class="me">
@@ -60,7 +60,7 @@ import { Auth } from '../core/auth/auth';
             <div class="name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ auth.user()?.full_name || auth.user()?.email }}</div>
             <div class="faint" style="font-size:.74rem; text-transform:capitalize">{{ auth.user()?.role }}</div>
           </div>
-          <button class="btn ghost sm" (click)="logout()" title="Cerrar sesión">⎋</button>
+          <button class="btn ghost sm" (click)="logout()" title="Cerrar sesión">Salir</button>
         </div>
       </aside>
       <main class="main"><router-outlet /></main>

@@ -61,3 +61,16 @@ export class Api {
     return this.http.post<Envelope<T>>(this.base + path, form).pipe(map(r => r.data), catchError(this.fail));
   }
 }
+
+/** Extrae un mensaje legible de un ApiError (detail puede ser string, {campo:[msgs]} u objeto). */
+export function apiErrMsg(e: any, fallback = 'Ocurrió un error.'): string {
+  const d = e?.detail ?? e;
+  if (typeof d === 'string') return d;
+  if (d && typeof d === 'object') {
+    const first: any = Object.values(d)[0];
+    if (Array.isArray(first)) return String(first[0]);
+    if (typeof first === 'string') return first;
+    try { return JSON.stringify(d); } catch { return fallback; }
+  }
+  return fallback;
+}

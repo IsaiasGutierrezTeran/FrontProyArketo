@@ -50,7 +50,7 @@ import { Model3D, RiskAnalysis } from '../../core/models';
                   <span class="badge" [class]="f.severity">{{ f.severity }}</span>
                 </div>
                 <div>{{ f.description }}</div>
-                @if (f.suggestion) { <div class="muted" style="margin-top:4px">💡 {{ f.suggestion }}</div> }
+                @if (f.suggestion) { <div class="muted" style="margin-top:4px">{{ f.suggestion }}</div> }
               </div>
             }
           } @else { <div class="muted">Sin observaciones.</div> }
