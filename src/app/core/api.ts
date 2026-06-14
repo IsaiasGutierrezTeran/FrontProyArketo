@@ -60,6 +60,17 @@ export class Api {
   postForm<T>(path: string, form: FormData): Observable<T> {
     return this.http.post<Envelope<T>>(this.base + path, form).pipe(map(r => r.data), catchError(this.fail));
   }
+
+  /**
+   * Descarga binaria con JWT (el authInterceptor inyecta el Authorization).
+   * Útil para endpoints protegidos que no sirven en <img src> directo
+   * (p. ej. /models3d/{id}/plan.png y /plan.pdf): se carga como Blob,
+   * y el componente arma un object URL con URL.createObjectURL().
+   */
+  blob(path: string, query?: Record<string, any>): Observable<Blob> {
+    return this.http.get(this.base + path, { params: this.params(query), responseType: 'blob' })
+      .pipe(catchError(this.fail));
+  }
 }
 
 /** Extrae un mensaje legible de un ApiError (detail puede ser string, {campo:[msgs]} u objeto). */

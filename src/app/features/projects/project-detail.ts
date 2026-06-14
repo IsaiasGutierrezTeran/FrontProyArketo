@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
@@ -15,6 +15,7 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
     .tabs button { background: none; border: none; color: var(--muted); padding: 10px 14px; cursor: pointer; font: inherit; border-bottom: 2px solid transparent; }
     .tabs button.on { color: var(--text); border-bottom-color: var(--primary); }
     model-viewer { width: 100%; height: 520px; border-radius: 16px; background: #11151c radial-gradient(120% 120% at 50% 0%, #1c2430, #0a0d12); }
+    .plan2d { width: 100%; border-radius: 12px; background: #fff; display: block; }
   `],
   template: `
     <div class="page">
@@ -44,6 +45,23 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
           <div class="card" style="margin-bottom:16px">
             <h3>Modelo 3D actual</h3>
             @if (currentModel(); as m) {
+              <!-- Plano 2D (PNG con JWT vía blob) -->
+              <h4 style="margin:6px 0">Plano 2D</h4>
+              @if (planPngUrl()) {
+                <img class="plan2d" [src]="planPngUrl()" alt="Plano 2D del modelo">
+              } @else if (planError()) {
+                <div class="muted">{{ planError() }}</div>
+              } @else {
+                <div class="muted">Cargando plano…</div>
+              }
+              <div class="row wrap" style="margin-top:8px">
+                <button class="btn ghost sm" [disabled]="pdfBusy()" (click)="downloadPdf(m)">{{ pdfBusy() ? 'Descargando…' : 'Descargar PDF' }}</button>
+                <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">Editar plano 2D</a>
+              </div>
+
+              <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
+
+              <h4 style="margin:6px 0">Visor 3D</h4>
               @if (m.glb_url) { <model-viewer [attr.src]="m.glb_url" camera-controls interaction-prompt="none" shadow-intensity="1" shadow-softness="0.7" environment-image="neutral" exposure="1.05" tone-mapping="neutral" camera-orbit="45deg 60deg auto" min-camera-orbit="auto 25deg auto" max-camera-orbit="auto 88deg auto" field-of-view="35deg" min-field-of-view="20deg" max-field-of-view="55deg" auto-rotate auto-rotate-delay="800" rotation-per-second="18deg" ar ar-modes="webxr scene-viewer quick-look"></model-viewer> }
               <div class="muted" style="margin-top:8px">{{ m.element_count }} elementos · modelo {{ m.model_name || '—' }}
                 · <a [attr.href]="m.glb_url" target="_blank">descargar .glb</a>
@@ -131,7 +149,7 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
     </div>
   `,
 })
-export class ProjectDetail implements OnInit {
+export class ProjectDetail implements OnInit, OnDestroy {
   private api = inject(Api);
   private route = inject(ActivatedRoute);
   auth = inject(Auth);
@@ -153,6 +171,11 @@ export class ProjectDetail implements OnInit {
 
   currentModel = signal<Model3D | null>(null);
   detectorByPlan: Record<number, string> = {};
+
+  // Plano 2D (PNG cargado como blob por requerir JWT) + descarga PDF.
+  planPngUrl = signal<string | null>(null);
+  planError = signal('');
+  pdfBusy = signal(false);
 
   file: File | null = null;
   uploading = signal(false);
@@ -185,9 +208,46 @@ export class ProjectDetail implements OnInit {
   private loadModels(): void {
     this.api.page<Model3D>('/models3d/', { project: this.id }).subscribe(r => {
       this.models.set(r.items);
-      this.currentModel.set(r.items.find(m => m.is_current) || r.items[0] || null);
+      const current = r.items.find(m => m.is_current) || r.items[0] || null;
+      this.currentModel.set(current);
+      this.loadPlanPng(current);
     });
   }
+
+  /** Revoca el object URL del PNG para no fugar memoria. */
+  private revokePng(): void {
+    const u = this.planPngUrl();
+    if (u) URL.revokeObjectURL(u);
+    this.planPngUrl.set(null);
+  }
+
+  /** Carga el plano 2D del modelo actual como blob -> object URL para el <img>. */
+  private loadPlanPng(model: Model3D | null): void {
+    this.revokePng(); this.planError.set('');
+    if (!model) return;
+    this.api.blob(`/models3d/${model.id}/plan.png/`).subscribe({
+      next: b => this.planPngUrl.set(URL.createObjectURL(b)),
+      error: e => this.planError.set(apiErrMsg(e, 'No se pudo cargar el plano.')),
+    });
+  }
+
+  /** Descarga el plano en PDF (blob con JWT -> object URL + a.download). */
+  downloadPdf(model: Model3D): void {
+    this.pdfBusy.set(true);
+    this.api.blob(`/models3d/${model.id}/plan.pdf/`).subscribe({
+      next: b => {
+        const url = URL.createObjectURL(b);
+        const a = document.createElement('a');
+        a.href = url; a.download = `plano-modelo-${model.id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.pdfBusy.set(false);
+      },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo descargar el PDF.')); this.pdfBusy.set(false); },
+    });
+  }
+
+  ngOnDestroy(): void { this.revokePng(); }
 
   pick(e: Event): void { this.file = (e.target as HTMLInputElement).files?.[0] || null; }
 

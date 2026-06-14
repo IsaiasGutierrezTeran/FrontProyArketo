@@ -1,8 +1,8 @@
-import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, inject, signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api } from '../../core/api';
-import { DesignRequest, Project } from '../../core/models';
+import { Api, apiErrMsg } from '../../core/api';
+import { DesignRequest, Model3D, Project } from '../../core/models';
 
 @Component({
   selector: 'app-ai-design',
@@ -16,6 +16,7 @@ import { DesignRequest, Project } from '../../core/models';
     .msg { padding:8px 12px; border-radius:8px; margin:6px 0; max-width:80%; }
     .msg.user { background:var(--primary); color:#fff; margin-left:auto; }
     .msg.assistant { background:var(--surface-2); }
+    .plan2d { width:100%; border-radius:12px; background:#fff; display:block; }
   `],
   template: `
     <div class="page">
@@ -82,6 +83,24 @@ import { DesignRequest, Project } from '../../core/models';
         <div class="card" style="margin-top:16px">
           <div class="row spread"><h3 style="margin:0">Resultado</h3><span class="badge" [class]="r.status">{{ r.status }}</span></div>
           @if (r.transcript) { <p class="muted">Transcripción: "{{ r.transcript }}"</p> }
+
+          <!-- Plano 2D (PNG con JWT vía blob) -->
+          @if (r.model; as m) {
+            <h4 style="margin:14px 0 6px">Plano 2D</h4>
+            @if (planPngUrl()) {
+              <img class="plan2d" [src]="planPngUrl()" alt="Plano 2D del modelo">
+            } @else if (planError()) {
+              <div class="muted">{{ planError() }}</div>
+            } @else {
+              <div class="muted">Cargando plano…</div>
+            }
+            <div class="row wrap" style="margin-top:8px">
+              <button class="btn ghost sm" [disabled]="pdfBusy()" (click)="downloadPdf(m)">{{ pdfBusy() ? 'Descargando…' : 'Descargar PDF' }}</button>
+              <a class="btn ghost sm" [routerLink]="['/projects', r.project, 'edit3d']">Editar plano 2D</a>
+            </div>
+            <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
+          }
+
           @if (r.model?.glb_url) {
             <model-viewer [attr.src]="r.model!.glb_url" camera-controls interaction-prompt="none" shadow-intensity="1" shadow-softness="0.7" environment-image="neutral" exposure="1.05" tone-mapping="neutral" camera-orbit="45deg 60deg auto" min-camera-orbit="auto 25deg auto" max-camera-orbit="auto 88deg auto" field-of-view="35deg" min-field-of-view="20deg" max-field-of-view="55deg" auto-rotate auto-rotate-delay="800" rotation-per-second="18deg" ar ar-modes="webxr scene-viewer quick-look"></model-viewer>
             <div class="muted" style="margin-top:6px">{{ r.model!.element_count }} elementos
@@ -95,7 +114,7 @@ import { DesignRequest, Project } from '../../core/models';
     </div>
   `,
 })
-export class AiDesign implements OnInit {
+export class AiDesign implements OnInit, OnDestroy {
   private api = inject(Api);
 
   projects = signal<Project[]>([]);
@@ -111,8 +130,48 @@ export class AiDesign implements OnInit {
   busy = signal(false);
   error = signal('');
 
+  // Plano 2D (PNG cargado como blob por requerir JWT) + descarga PDF.
+  planPngUrl = signal<string | null>(null);
+  planError = signal('');
+  pdfBusy = signal(false);
+
   ngOnInit(): void {
     this.api.page<Project>('/projects/', { page_size: 100 }).subscribe(r => this.projects.set(r.items));
+  }
+
+  ngOnDestroy(): void { this.revokePng(); }
+
+  /** Revoca el object URL del PNG para no fugar memoria. */
+  private revokePng(): void {
+    const u = this.planPngUrl();
+    if (u) URL.revokeObjectURL(u);
+    this.planPngUrl.set(null);
+  }
+
+  /** Carga el plano 2D del modelo como blob -> object URL para el <img>. */
+  private loadPlanPng(model: Model3D | null): void {
+    this.revokePng(); this.planError.set('');
+    if (!model) return;
+    this.api.blob(`/models3d/${model.id}/plan.png`).subscribe({
+      next: b => this.planPngUrl.set(URL.createObjectURL(b)),
+      error: e => this.planError.set(apiErrMsg(e, 'No se pudo cargar el plano.')),
+    });
+  }
+
+  /** Descarga el plano en PDF (blob con JWT -> object URL + a.download). */
+  downloadPdf(model: Model3D): void {
+    this.pdfBusy.set(true);
+    this.api.blob(`/models3d/${model.id}/plan.pdf`).subscribe({
+      next: b => {
+        const url = URL.createObjectURL(b);
+        const a = document.createElement('a');
+        a.href = url; a.download = `plano-modelo-${model.id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.pdfBusy.set(false);
+      },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo descargar el PDF.')); this.pdfBusy.set(false); },
+    });
   }
 
   pick(e: Event): void { this.file = (e.target as HTMLInputElement).files?.[0] || null; }
@@ -120,7 +179,7 @@ export class AiDesign implements OnInit {
   generateText(): void {
     this.busy.set(true); this.error.set('');
     this.api.post<DesignRequest>('/ai-design/text', { prompt: this.prompt, project: this.project, provider: this.provider }).subscribe({
-      next: r => { this.result.set(r); this.busy.set(false); },
+      next: r => { this.result.set(r); this.loadPlanPng(r.model); this.busy.set(false); },
       error: e => { this.error.set(e.detail || 'No se pudo generar.'); this.busy.set(false); },
     });
   }
@@ -133,7 +192,7 @@ export class AiDesign implements OnInit {
     if (this.project) fd.append('project', String(this.project));
     fd.append('provider', this.provider);
     this.api.postForm<DesignRequest>('/ai-design/audio', fd).subscribe({
-      next: r => { this.result.set(r); this.busy.set(false); },
+      next: r => { this.result.set(r); this.loadPlanPng(r.model); this.busy.set(false); },
       error: e => { this.error.set(e.detail || 'No se pudo procesar el audio.'); this.busy.set(false); },
     });
   }
