@@ -16,6 +16,7 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
     .tabs button.on { color: var(--text); border-bottom-color: var(--primary); }
     model-viewer { width: 100%; height: 520px; border-radius: 16px; background: #11151c radial-gradient(120% 120% at 50% 0%, #1c2430, #0a0d12); }
     .plan2d { width: 100%; border-radius: 12px; background: #fff; display: block; }
+    .plan-thumb { height: 48px; width: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); display: block; background: #fff; }
   `],
   template: `
     <div class="page">
@@ -85,9 +86,16 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
             </form>
             @if (error()) { <div class="alert">{{ error() }}</div> }
             <table>
-              <tr><th>Archivo</th><th>Estado</th><th>Detector</th><th></th></tr>
+              <tr><th>Vista</th><th>Archivo</th><th>Estado</th><th>Detector</th><th></th><th></th></tr>
               @for (pl of plans(); track pl.id) {
                 <tr>
+                  <td>
+                    @if (pl.file_url) {
+                      <a [attr.href]="pl.file_url" target="_blank" title="Ver plano">
+                        @if (isImage(pl)) { <img [src]="pl.file_url" class="plan-thumb" alt="plano"> } @else { ver }
+                      </a>
+                    }
+                  </td>
                   <td>{{ pl.original_format.toUpperCase() }} · {{ (pl.size_bytes/1024) | number:'1.0-0' }} KB</td>
                   <td><span class="badge" [class]="pl.status">{{ pl.status }}</span></td>
                   <td><select [(ngModel)]="detectorByPlan[pl.id]" [ngModelOptions]="{standalone:true}">
@@ -95,9 +103,11 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
                   </select></td>
                   <td><button class="btn sm" [disabled]="running()===pl.id" (click)="runDetect(pl)">
                     {{ running()===pl.id ? 'Generando…' : 'Generar 3D' }}</button></td>
+                  <td><button class="btn sm danger" [disabled]="deleting()===pl.id" (click)="deletePlan(pl)">
+                    {{ deleting()===pl.id ? 'Eliminando…' : 'Eliminar' }}</button></td>
                 </tr>
               }
-              @if (!plans().length) { <tr><td colspan="4" class="muted">Sin planos.</td></tr> }
+              @if (!plans().length) { <tr><td colspan="6" class="muted">Sin planos.</td></tr> }
             </table>
           </div>
         }
@@ -180,6 +190,7 @@ export class ProjectDetail implements OnInit, OnDestroy {
   file: File | null = null;
   uploading = signal(false);
   running = signal<number | null>(null);
+  deleting = signal<number | null>(null);
   error = signal('');
   glbFile: File | null = null;
   importing = signal(false);
@@ -268,6 +279,19 @@ export class ProjectDetail implements OnInit, OnDestroy {
     this.api.post<DetectionJob>('/detection/run', { plan: pl.id, detector: this.detectorByPlan[pl.id] }).subscribe({
       next: () => { this.running.set(null); this.loadPlans(); this.loadModels(); },
       error: e => { this.error.set(e.detail || 'Falló la generación.'); this.running.set(null); },
+    });
+  }
+
+  isImage(pl: Plan): boolean {
+    return ['jpg', 'jpeg', 'png'].includes((pl.original_format || '').toLowerCase());
+  }
+
+  deletePlan(pl: Plan): void {
+    if (!confirm('¿Eliminar este plano? No se puede deshacer.')) return;
+    this.deleting.set(pl.id); this.error.set('');
+    this.api.delete(`/plans/${pl.id}/`).subscribe({
+      next: () => { this.plans.update(l => l.filter(p => p.id !== pl.id)); this.deleting.set(null); },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo eliminar el plano.')); this.deleting.set(null); },
     });
   }
 
