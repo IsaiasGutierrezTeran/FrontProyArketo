@@ -35,7 +35,7 @@ export interface Comment { id: number; project: number; author_email: string; bo
 
 export interface Plan {
   id: number; project: number; original_format: string; size_bytes: number;
-  status: string; file_url: string | null; uploaded_by_email: string; created_at: string;
+  status: string; file_url: string | null; filename?: string | null; uploaded_by_email: string; created_at: string;
 }
 
 export interface Model3D {

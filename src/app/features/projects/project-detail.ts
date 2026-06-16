@@ -96,7 +96,10 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
                       </a>
                     }
                   </td>
-                  <td>{{ pl.original_format.toUpperCase() }} · {{ (pl.size_bytes/1024) | number:'1.0-0' }} KB</td>
+                  <td>
+                    <div style="font-weight:500; word-break:break-all">{{ pl.filename || pl.original_format.toUpperCase() }}</div>
+                    <div class="muted" style="font-size:.78rem">{{ pl.original_format.toUpperCase() }} · {{ (pl.size_bytes/1024) | number:'1.0-0' }} KB</div>
+                  </td>
                   <td><span class="badge" [class]="pl.status">{{ pl.status }}</span></td>
                   <td><select [(ngModel)]="detectorByPlan[pl.id]" [ngModelOptions]="{standalone:true}">
                     <option value="mock">mock</option><option value="maskrcnn">maskrcnn</option>
