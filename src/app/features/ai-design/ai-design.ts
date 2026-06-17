@@ -34,7 +34,7 @@ import { DesignRequest, Model3D, Project } from '../../core/models';
         <div>
           <label>Proveedor</label>
           <select [(ngModel)]="provider" [ngModelOptions]="{standalone:true}">
-            <option value="mock">mock</option><option value="gemini">gemini</option>
+            <option value="mock">mock</option><option value="gemini">gemini</option><option value="aws">aws (Claude)</option>
           </select>
         </div>
       </div>
@@ -51,7 +51,7 @@ import { DesignRequest, Model3D, Project } from '../../core/models';
         <form class="card" (ngSubmit)="generateText()">
           <label>Describe el plano (incluye medidas, p. ej. "casa de 6 x 4 metros")</label>
           <textarea class="input" rows="3" [(ngModel)]="prompt" name="prompt"></textarea>
-          <button class="btn" style="margin-top:10px" [disabled]="busy() || !prompt">{{ busy() ? 'Generando…' : 'Generar' }}</button>
+          <button class="btn" style="margin-top:10px" [disabled]="busy() || !prompt.trim()">{{ busy() ? 'Generando…' : 'Generar' }}</button>
         </form>
       }
 
@@ -96,7 +96,9 @@ import { DesignRequest, Model3D, Project } from '../../core/models';
             }
             <div class="row wrap" style="margin-top:8px">
               <button class="btn ghost sm" [disabled]="pdfBusy()" (click)="downloadPdf(m)">{{ pdfBusy() ? 'Descargando…' : 'Descargar PDF' }}</button>
-              <a class="btn ghost sm" [routerLink]="['/projects', r.project, 'edit3d']">Editar plano 2D</a>
+              @if (r.project) {
+                <a class="btn ghost sm" [routerLink]="['/projects', r.project, 'edit3d']">Editar plano 2D</a>
+              }
             </div>
             <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
           }
@@ -152,7 +154,7 @@ export class AiDesign implements OnInit, OnDestroy {
   private loadPlanPng(model: Model3D | null): void {
     this.revokePng(); this.planError.set('');
     if (!model) return;
-    this.api.blob(`/models3d/${model.id}/plan.png`).subscribe({
+    this.api.blob(`/models3d/${model.id}/plan.png/`).subscribe({
       next: b => this.planPngUrl.set(URL.createObjectURL(b)),
       error: e => this.planError.set(apiErrMsg(e, 'No se pudo cargar el plano.')),
     });
@@ -161,7 +163,7 @@ export class AiDesign implements OnInit, OnDestroy {
   /** Descarga el plano en PDF (blob con JWT -> object URL + a.download). */
   downloadPdf(model: Model3D): void {
     this.pdfBusy.set(true);
-    this.api.blob(`/models3d/${model.id}/plan.pdf`).subscribe({
+    this.api.blob(`/models3d/${model.id}/plan.pdf/`).subscribe({
       next: b => {
         const url = URL.createObjectURL(b);
         const a = document.createElement('a');
@@ -178,7 +180,7 @@ export class AiDesign implements OnInit, OnDestroy {
 
   generateText(): void {
     this.busy.set(true); this.error.set('');
-    this.api.post<DesignRequest>('/ai-design/text', { prompt: this.prompt, project: this.project, provider: this.provider }).subscribe({
+    this.api.post<DesignRequest>('/ai-design/text', { prompt: this.prompt.trim(), project: this.project, provider: this.provider }).subscribe({
       next: r => { this.result.set(r); this.loadPlanPng(r.model); this.busy.set(false); },
       error: e => { this.error.set(e.detail || 'No se pudo generar.'); this.busy.set(false); },
     });
