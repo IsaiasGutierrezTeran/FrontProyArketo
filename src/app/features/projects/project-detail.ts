@@ -102,7 +102,9 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
                   </td>
                   <td><span class="badge" [class]="pl.status">{{ pl.status }}</span></td>
                   <td><select [(ngModel)]="detectorByPlan[pl.id]" [ngModelOptions]="{standalone:true}">
-                    <option value="mock">mock</option><option value="maskrcnn">maskrcnn</option>
+                    <option value="gemini-vision">IA visión (color)</option>
+                    <option value="maskrcnn">Mask R-CNN (B&N)</option>
+                    <option value="mock">mock (demo)</option>
                   </select></td>
                   <td><button class="btn sm" [disabled]="running()===pl.id" (click)="runDetect(pl)">
                     {{ running()===pl.id ? 'Generando…' : 'Generar 3D' }}</button></td>
@@ -215,7 +217,7 @@ export class ProjectDetail implements OnInit, OnDestroy {
   private loadPlans(): void {
     this.api.page<Plan>('/plans/', { project: this.id }).subscribe(r => {
       this.plans.set(r.items);
-      r.items.forEach(p => this.detectorByPlan[p.id] ??= 'mock');
+      r.items.forEach(p => this.detectorByPlan[p.id] ??= 'maskrcnn');
     });
   }
 
@@ -272,7 +274,7 @@ export class ProjectDetail implements OnInit, OnDestroy {
     fd.append('project', String(this.id));
     fd.append('file', this.file);
     this.api.postForm<Plan>('/plans/', fd).subscribe({
-      next: p => { this.plans.update(l => [p, ...l]); this.detectorByPlan[p.id] = 'mock'; this.uploading.set(false); this.file = null; },
+      next: p => { this.plans.update(l => [p, ...l]); this.detectorByPlan[p.id] = 'maskrcnn'; this.uploading.set(false); this.file = null; },
       error: e => { this.error.set(apiErrMsg(e, 'No se pudo subir.')); this.uploading.set(false); },
     });
   }
