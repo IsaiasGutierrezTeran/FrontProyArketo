@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Api } from '../../core/api';
+import { Api, apiErrMsg } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
 import { Budget, Material } from '../../core/models';
 
@@ -72,6 +72,8 @@ interface ItemRow { material: number | null; quantity: number; }
           }
 
           <div class="row" style="margin-top:12px">
+            <button class="btn ghost sm" [disabled]="pdfBusy()===b.id" (click)="downloadPdf(b)">
+              {{ pdfBusy()===b.id ? 'Descargando…' : 'Descargar PDF' }}</button>
             @if (b.status === 'draft' || b.status === 'observed') {
               <button class="btn sm" (click)="submit(b)">Enviar a revisión</button>
             }
@@ -103,6 +105,21 @@ export class BudgetScreen implements OnInit {
   loading = signal(true);
   saving = signal(false);
   error = signal('');
+  pdfBusy = signal<number | null>(null);
+
+  downloadPdf(b: Budget): void {
+    this.pdfBusy.set(b.id);
+    this.api.blob(`/budgets/${b.id}/export.pdf/`).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = `presupuesto-${b.id}.pdf`; link.click();
+        URL.revokeObjectURL(url);
+        this.pdfBusy.set(null);
+      },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo descargar el PDF.')); this.pdfBusy.set(null); },
+    });
+  }
 
   ngOnInit(): void {
     this.id = Number(this.route.snapshot.paramMap.get('id'));

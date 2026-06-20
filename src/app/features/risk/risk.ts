@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Api } from '../../core/api';
+import { Api, apiErrMsg } from '../../core/api';
 import { Model3D, RiskAnalysis } from '../../core/models';
 
 @Component({
@@ -42,6 +42,8 @@ import { Model3D, RiskAnalysis } from '../../core/models';
             <span class="muted">{{ a.provider }} · {{ a.created_at | date:'short' }}</span>
           </div>
           <p>{{ a.summary }}</p>
+          <button class="btn ghost sm" [disabled]="pdfBusy()===a.id" (click)="downloadReport(a)">
+            {{ pdfBusy()===a.id ? 'Descargando…' : 'Descargar reporte PDF' }}</button>
           @if (a.findings.length) {
             @for (f of a.findings; track f.id) {
               <div style="border-left:3px solid var(--border); padding:8px 12px; margin:8px 0">
@@ -71,7 +73,22 @@ export class Risk implements OnInit {
   loading = signal(true);
   analyzing = signal(false);
   error = signal('');
+  pdfBusy = signal<number | null>(null);
   private modelIds = new Set<number>();
+
+  downloadReport(a: RiskAnalysis): void {
+    this.pdfBusy.set(a.id);
+    this.api.blob(`/risk/analyses/${a.id}/report.pdf/`).subscribe({
+      next: b => {
+        const url = URL.createObjectURL(b);
+        const link = document.createElement('a');
+        link.href = url; link.download = `riesgos-${a.id}.pdf`; link.click();
+        URL.revokeObjectURL(url);
+        this.pdfBusy.set(null);
+      },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo descargar el PDF.')); this.pdfBusy.set(null); },
+    });
+  }
 
   ngOnInit(): void {
     this.id = Number(this.route.snapshot.paramMap.get('id'));

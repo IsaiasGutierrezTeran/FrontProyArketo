@@ -63,7 +63,8 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
               <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
 
               <h4 style="margin:6px 0">Visor 3D</h4>
-              @if (m.glb_url) { <model-viewer [attr.src]="m.glb_url" camera-controls interaction-prompt="none" shadow-intensity="1" shadow-softness="0.7" environment-image="neutral" exposure="1.05" tone-mapping="neutral" camera-orbit="45deg 60deg auto" min-camera-orbit="auto 25deg auto" max-camera-orbit="auto 88deg auto" field-of-view="35deg" min-field-of-view="20deg" max-field-of-view="55deg" auto-rotate auto-rotate-delay="800" rotation-per-second="18deg" ar ar-modes="webxr scene-viewer quick-look"></model-viewer> }
+              @if (m.glb_url) { <model-viewer #mv [attr.src]="m.glb_url" camera-controls interaction-prompt="none" shadow-intensity="1" shadow-softness="0.7" environment-image="neutral" exposure="1.05" tone-mapping="neutral" camera-orbit="45deg 60deg auto" min-camera-orbit="auto 25deg auto" max-camera-orbit="auto 88deg auto" field-of-view="35deg" min-field-of-view="20deg" max-field-of-view="55deg" auto-rotate auto-rotate-delay="800" rotation-per-second="18deg" ar ar-modes="webxr scene-viewer quick-look"></model-viewer>
+                <button class="btn ghost sm" style="margin-top:8px" (click)="resetCamera(mv)">Reiniciar vista</button> }
               <div class="muted" style="margin-top:8px">{{ m.element_count }} elementos · modelo {{ m.model_name || '—' }}
                 · <a [attr.href]="m.glb_url" target="_blank">descargar .glb</a>
                 · <a [routerLink]="['/projects', id, 'edit3d']">editar</a></div>
@@ -289,6 +290,16 @@ export class ProjectDetail implements OnInit, OnDestroy {
 
   isImage(pl: Plan): boolean {
     return ['jpg', 'jpeg', 'png'].includes((pl.original_format || '').toLowerCase());
+  }
+
+  /** HU-6: reinicia la cámara del visor 3D a su posición inicial. */
+  resetCamera(mv: any): void {
+    if (!mv) return;
+    mv.cameraOrbit = '45deg 60deg auto';
+    mv.cameraTarget = 'auto auto auto';
+    mv.fieldOfView = '35deg';
+    mv.resetTurntableRotation?.();
+    mv.jumpCameraToGoal?.();
   }
 
   deletePlan(pl: Plan): void {
