@@ -61,6 +61,11 @@ export class Api {
     return this.http.post<Envelope<T>>(this.base + path, form).pipe(map(r => r.data), catchError(this.fail));
   }
 
+  /** Multipart PATCH (p. ej. avatar de perfil). */
+  patchForm<T>(path: string, form: FormData): Observable<T> {
+    return this.http.patch<Envelope<T>>(this.base + path, form).pipe(map(r => r.data), catchError(this.fail));
+  }
+
   /**
    * Descarga binaria con JWT (el authInterceptor inyecta el Authorization).
    * Útil para endpoints protegidos que no sirven en <img src> directo
