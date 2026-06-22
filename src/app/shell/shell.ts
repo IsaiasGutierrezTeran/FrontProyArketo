@@ -1,6 +1,8 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Api } from '../core/api';
 import { Auth } from '../core/auth/auth';
+import { Invitation } from '../core/models';
 
 @Component({
   selector: 'app-shell',
@@ -43,6 +45,10 @@ import { Auth } from '../core/auth/auth';
         <nav>
           <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
           <a routerLink="/projects" routerLinkActive="active">Proyectos</a>
+          <a routerLink="/invitations" routerLinkActive="active">
+            Invitaciones
+            @if (inviteCount() > 0) { <span class="badge" style="margin-left:auto">{{ inviteCount() }}</span> }
+          </a>
           <a routerLink="/ai-design" routerLinkActive="active">Diseño IA</a>
         </nav>
         <div class="nav-label">Cuenta</div>
@@ -67,9 +73,20 @@ import { Auth } from '../core/auth/auth';
     </div>
   `,
 })
-export class Shell {
+export class Shell implements OnInit {
   auth = inject(Auth);
+  private api = inject(Api);
   private router = inject(Router);
+
+  inviteCount = signal(0);
+
+  ngOnInit(): void {
+    // Pendientes de aceptar, para el badge del nav.
+    this.api.get<Invitation[]>('/invitations/').subscribe({
+      next: i => this.inviteCount.set(i.length),
+      error: () => {},
+    });
+  }
 
   initials = computed(() => {
     const u = this.auth.user();

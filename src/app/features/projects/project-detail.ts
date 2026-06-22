@@ -1,10 +1,10 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
-import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../../core/models';
+import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../core/models';
 
 @Component({
   selector: 'app-project-detail',
@@ -121,27 +121,30 @@ import { Comment, DetectionJob, Member, Model3D, Plan, Project, User } from '../
         @if (tab() === 'team') {
           <div class="card" style="margin-bottom:16px">
             <h3>Colaboradores</h3>
+            <p class="muted" style="margin-top:0">Elige un usuario de la lista e invítalo; recibirá la invitación y deberá aceptarla para colaborar.</p>
             <form class="row wrap" (ngSubmit)="invite()">
-              @if (invitable().length) {
-                <select class="input" style="width:auto; flex:1" name="email" [(ngModel)]="inviteEmail">
-                  <option value="">— elige un colaborador —</option>
-                  @for (u of invitable(); track u.id) {
-                    <option [value]="u.email">{{ u.full_name || u.email }} · {{ u.role }}</option>
+              @if (assignable().length) {
+                <select class="input" style="width:auto; flex:1" name="user" [(ngModel)]="inviteUserId">
+                  <option [ngValue]="null">— elige un usuario —</option>
+                  @for (u of assignable(); track u.id) {
+                    <option [ngValue]="u.id">{{ u.full_name || u.email }} · {{ u.role }}</option>
                   }
                 </select>
               } @else {
-                <input class="input" style="width:auto; flex:1" placeholder="email del colaborador" name="email" [(ngModel)]="inviteEmail">
+                <span class="muted" style="flex:1; align-self:center">No hay usuarios disponibles para invitar.</span>
               }
               <select [(ngModel)]="inviteRole" name="role" style="width:auto">
                 <option value="editor">editor</option><option value="viewer">lector</option>
               </select>
-              <button class="btn sm" [disabled]="!inviteEmail">Invitar</button>
+              <button class="btn sm" [disabled]="inviteUserId == null">Invitar</button>
             </form>
             @if (teamError()) { <div class="alert">{{ teamError() }}</div> }
             <table>
               @for (m of members(); track m.id) {
-                <tr><td>{{ m.user_email }}</td><td><span class="badge">{{ m.role }}</span></td>
-                  <td style="text-align:right"><button class="btn sm danger" (click)="removeMember(m)">Quitar</button></td></tr>
+                <tr><td>{{ m.user_full_name || m.user_email }}</td>
+                  <td><span class="badge">{{ m.role }}</span>
+                    @if (m.status === 'pending') { <span class="badge" style="margin-left:6px; opacity:.85">pendiente</span> }</td>
+                  <td style="text-align:right"><button class="btn sm danger" (click)="removeMember(m)">{{ m.status === 'pending' ? 'Cancelar' : 'Quitar' }}</button></td></tr>
               }
               @if (!members().length) { <tr><td class="muted">Aún sin colaboradores.</td></tr> }
             </table>
@@ -177,13 +180,8 @@ export class ProjectDetail implements OnInit, OnDestroy {
   models = signal<Model3D[]>([]);
   members = signal<Member[]>([]);
   comments = signal<Comment[]>([]);
-  allUsers = signal<User[]>([]);
-  // Lista de usuarios para elegir como colaborador (excluye al dueño/uno mismo y a los ya miembros).
-  invitable = computed(() => {
-    const taken = new Set(this.members().map(m => m.user_email));
-    const me = this.auth.user()?.email;
-    return this.allUsers().filter(u => u.is_active !== false && u.email !== me && !taken.has(u.email));
-  });
+  // Usuarios que el dueño puede invitar (el backend ya excluye al dueño y a los ya invitados).
+  assignable = signal<AssignableUser[]>([]);
 
   currentModel = signal<Model3D | null>(null);
   detectorByPlan: Record<number, string> = {};
@@ -201,7 +199,7 @@ export class ProjectDetail implements OnInit, OnDestroy {
   glbFile: File | null = null;
   importing = signal(false);
   importError = signal('');
-  inviteEmail = ''; inviteRole = 'editor'; teamError = signal('');
+  inviteUserId: number | null = null; inviteRole = 'editor'; teamError = signal('');
   commentBody = '';
 
   ngOnInit(): void {
@@ -209,10 +207,15 @@ export class ProjectDetail implements OnInit, OnDestroy {
     this.api.get<Project>(`/projects/${this.id}/`).subscribe(p => this.project.set(p));
     this.loadPlans();
     this.loadModels();
-    this.api.get<Member[]>(`/projects/${this.id}/members/`).subscribe(m => this.members.set(m));
+    this.loadTeam();
     this.api.page<Comment>('/comments/', { project: this.id }).subscribe(r => this.comments.set(r.items));
-    // Carga usuarios para el selector de colaboradores; si no hay permiso (no superadmin), cae al input de email.
-    this.api.page<User>('/users/').subscribe({ next: r => this.allUsers.set(r.items), error: () => {} });
+  }
+
+  /** Carga colaboradores (incluye invitaciones pendientes) y la lista de usuarios invitables. */
+  private loadTeam(): void {
+    this.api.get<Member[]>(`/projects/${this.id}/members/`).subscribe(m => this.members.set(m));
+    this.api.get<AssignableUser[]>(`/projects/${this.id}/assignable/`)
+      .subscribe({ next: u => this.assignable.set(u), error: () => this.assignable.set([]) });
   }
 
   private loadPlans(): void {
@@ -326,16 +329,17 @@ export class ProjectDetail implements OnInit, OnDestroy {
   }
 
   invite(): void {
+    if (this.inviteUserId == null) return;
     this.teamError.set('');
-    this.api.post<Member>(`/projects/${this.id}/members/`, { email: this.inviteEmail, role: this.inviteRole }).subscribe({
-      next: m => { this.members.update(l => [...l, m]); this.inviteEmail = ''; },
-      error: e => this.teamError.set(e.detail || 'No se pudo invitar.'),
+    this.api.post<Member>(`/projects/${this.id}/members/`, { user: this.inviteUserId, role: this.inviteRole }).subscribe({
+      next: () => { this.inviteUserId = null; this.loadTeam(); },
+      error: e => this.teamError.set(apiErrMsg(e, 'No se pudo invitar.')),
     });
   }
 
   removeMember(m: Member): void {
     this.api.delete(`/projects/${this.id}/members/${m.id}/`).subscribe({
-      next: () => this.members.update(l => l.filter(x => x.id !== m.id)),
+      next: () => this.loadTeam(),
       error: () => {},
     });
   }

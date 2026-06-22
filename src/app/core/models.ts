@@ -30,7 +30,12 @@ export interface DashboardSummary {
   total: number; by_status: Record<string, number>; recent: Project[];
 }
 
-export interface Member { id: number; project: number; user_email: string; role: string; created_at: string; }
+export interface Member { id: number; project: number; user_email: string; user_full_name?: string; role: string; status: 'pending' | 'accepted'; created_at: string; }
+export interface AssignableUser { id: number; email: string; full_name: string; role: Role; }
+export interface Invitation {
+  id: number; project: number; project_name: string; owner_email: string;
+  invited_by_email: string | null; role: string; status: string; created_at: string;
+}
 export interface Comment { id: number; project: number; author_email: string; body: string; parent: number | null; created_at: string; }
 
 export interface Plan {

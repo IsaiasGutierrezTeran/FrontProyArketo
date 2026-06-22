@@ -13,6 +13,7 @@ export const routes: Routes = [
       { path: 'dashboard', loadComponent: () => import('./features/dashboard/dashboard').then(m => m.Dashboard) },
       { path: 'projects', loadComponent: () => import('./features/projects/projects').then(m => m.Projects) },
       { path: 'projects/:id', loadComponent: () => import('./features/projects/project-detail').then(m => m.ProjectDetail) },
+      { path: 'invitations', loadComponent: () => import('./features/invitations/invitations').then(m => m.Invitations) },
       { path: 'projects/:id/budget', loadComponent: () => import('./features/budget/budget').then(m => m.BudgetScreen) },
       { path: 'projects/:id/risk', loadComponent: () => import('./features/risk/risk').then(m => m.Risk) },
       { path: 'projects/:id/edit3d', loadComponent: () => import('./features/modeling/scene-editor').then(m => m.SceneEditor) },

@@ -45,7 +45,8 @@ export class Api {
   }
 
   post<T>(path: string, body: any): Observable<T> {
-    return this.http.post<Envelope<T>>(this.base + path, body).pipe(map(r => r.data), catchError(this.fail));
+    // `r?.data` tolerates empty 204 responses (e.g. accept/decline).
+    return this.http.post<Envelope<T>>(this.base + path, body).pipe(map(r => r?.data as T), catchError(this.fail));
   }
 
   patch<T>(path: string, body: any): Observable<T> {
