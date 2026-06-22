@@ -49,7 +49,9 @@ import { Invitation } from '../core/models';
             Invitaciones
             @if (inviteCount() > 0) { <span class="badge" style="margin-left:auto">{{ inviteCount() }}</span> }
           </a>
-          <a routerLink="/ai-design" routerLinkActive="active">Diseño IA</a>
+          @if (auth.hasRole('arquitecto')) {
+            <a routerLink="/ai-design" routerLinkActive="active">Diseño IA</a>
+          }
         </nav>
         <div class="nav-label">Cuenta</div>
         <nav>

@@ -18,7 +18,11 @@ export const routes: Routes = [
       { path: 'projects/:id/risk', loadComponent: () => import('./features/risk/risk').then(m => m.Risk) },
       { path: 'projects/:id/edit3d', loadComponent: () => import('./features/modeling/scene-editor').then(m => m.SceneEditor) },
       { path: 'projects/:id/versions', loadComponent: () => import('./features/versioning/versions').then(m => m.Versions) },
-      { path: 'ai-design', loadComponent: () => import('./features/ai-design/ai-design').then(m => m.AiDesign) },
+      {
+        path: 'ai-design',
+        canActivate: [roleGuard('arquitecto')],
+        loadComponent: () => import('./features/ai-design/ai-design').then(m => m.AiDesign),
+      },
       { path: 'profile', loadComponent: () => import('./features/profile/profile').then(m => m.Profile) },
       { path: 'billing', loadComponent: () => import('./features/billing/billing').then(m => m.Billing) },
       {

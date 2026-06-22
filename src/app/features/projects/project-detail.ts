@@ -31,10 +31,13 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
         <div class="row wrap" style="margin-bottom:6px">
           <a class="btn ghost sm" [routerLink]="['/projects', id, 'budget']">Presupuesto</a>
           <a class="btn ghost sm" [routerLink]="['/projects', id, 'risk']">Riesgos</a>
-          <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">Editar 3D</a>
+          @if (canDesign) { <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">Editar 3D</a> }
           <a class="btn ghost sm" [routerLink]="['/projects', id, 'versions']">Versiones</a>
-          <a class="btn ghost sm" routerLink="/ai-design">Diseño IA</a>
+          @if (canDesign) { <a class="btn ghost sm" routerLink="/ai-design">Diseño IA</a> }
         </div>
+        @if (!canDesign) {
+          <div class="muted" style="font-size:.82rem; margin-bottom:6px">Solo un arquitecto puede subir planos, generar/editar 3D o diseñar con IA. Invita a uno en Colaboración.</div>
+        }
 
         <div class="tabs">
           <button [class.on]="tab()==='3d'" (click)="tab.set('3d')">Planos & 3D</button>
@@ -57,7 +60,7 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
               }
               <div class="row wrap" style="margin-top:8px">
                 <button class="btn ghost sm" [disabled]="pdfBusy()" (click)="downloadPdf(m)">{{ pdfBusy() ? 'Descargando…' : 'Descargar PDF' }}</button>
-                <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">Editar plano 2D</a>
+                @if (canDesign) { <a class="btn ghost sm" [routerLink]="['/projects', id, 'edit3d']">Editar plano 2D</a> }
               </div>
 
               <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
@@ -67,27 +70,31 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
                 <button class="btn ghost sm" style="margin-top:8px" (click)="resetCamera(mv)">Reiniciar vista</button> }
               <div class="muted" style="margin-top:8px">{{ m.element_count }} elementos · modelo {{ m.model_name || '—' }}
                 · <a [attr.href]="m.glb_url" target="_blank">descargar .glb</a>
-                · <a [routerLink]="['/projects', id, 'edit3d']">editar</a></div>
-            } @else { <div class="muted">Sin modelo 3D. Sube un plano y genéralo, o importa un .glb.</div> }
+                @if (canDesign) { · <a [routerLink]="['/projects', id, 'edit3d']">editar</a> }</div>
+            } @else { <div class="muted">Sin modelo 3D{{ canDesign ? '. Sube un plano y genéralo, o importa un .glb.' : ' todavía.' }}</div> }
 
-            <!-- Importar modelo externo (CU8) -->
-            <form class="row wrap" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)" (ngSubmit)="importGlb()">
-              <input type="file" (change)="pickGlb($event)" accept=".glb,.gltf">
-              <button class="btn ghost sm" [disabled]="!glbFile || importing()">{{ importing() ? 'Importando…' : 'Importar .glb/.gltf' }}</button>
-              @if (importError()) { <span class="alert" style="margin:0">{{ importError() }}</span> }
-            </form>
+            <!-- Importar modelo externo (CU8) — solo arquitecto -->
+            @if (canDesign) {
+              <form class="row wrap" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)" (ngSubmit)="importGlb()">
+                <input type="file" (change)="pickGlb($event)" accept=".glb,.gltf">
+                <button class="btn ghost sm" [disabled]="!glbFile || importing()">{{ importing() ? 'Importando…' : 'Importar .glb/.gltf' }}</button>
+                @if (importError()) { <span class="alert" style="margin:0">{{ importError() }}</span> }
+              </form>
+            }
           </div>
 
           <!-- Plans -->
           <div class="card">
             <div class="row spread"><h3 style="margin:0">Planos</h3></div>
-            <form class="row wrap" style="margin:10px 0" (ngSubmit)="upload()">
-              <input type="file" (change)="pick($event)" accept=".pdf,.jpg,.jpeg,.png,.csv">
-              <button class="btn sm" [disabled]="!file || uploading()">{{ uploading() ? 'Subiendo…' : 'Subir plano' }}</button>
-            </form>
+            @if (canDesign) {
+              <form class="row wrap" style="margin:10px 0" (ngSubmit)="upload()">
+                <input type="file" (change)="pick($event)" accept=".pdf,.jpg,.jpeg,.png,.csv">
+                <button class="btn sm" [disabled]="!file || uploading()">{{ uploading() ? 'Subiendo…' : 'Subir plano' }}</button>
+              </form>
+            }
             @if (error()) { <div class="alert">{{ error() }}</div> }
             <table>
-              <tr><th>Vista</th><th>Archivo</th><th>Estado</th><th>Detector</th><th></th><th></th></tr>
+              <tr><th>Vista</th><th>Archivo</th><th>Estado</th>@if (canDesign) { <th>Detector</th><th></th><th></th> }</tr>
               @for (pl of plans(); track pl.id) {
                 <tr>
                   <td>
@@ -102,15 +109,17 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
                     <div class="muted" style="font-size:.78rem">{{ pl.original_format.toUpperCase() }} · {{ (pl.size_bytes/1024) | number:'1.0-0' }} KB</div>
                   </td>
                   <td><span class="badge" [class]="pl.status">{{ pl.status }}</span></td>
-                  <td><select [(ngModel)]="detectorByPlan[pl.id]" [ngModelOptions]="{standalone:true}">
-                    <option value="gemini-vision">IA visión (color)</option>
-                    <option value="maskrcnn">Mask R-CNN (B&N)</option>
-                    <option value="mock">mock (demo)</option>
-                  </select></td>
-                  <td><button class="btn sm" [disabled]="running()===pl.id" (click)="runDetect(pl)">
-                    {{ running()===pl.id ? 'Generando…' : 'Generar 3D' }}</button></td>
-                  <td><button class="btn sm danger" [disabled]="deleting()===pl.id" (click)="deletePlan(pl)">
-                    {{ deleting()===pl.id ? 'Eliminando…' : 'Eliminar' }}</button></td>
+                  @if (canDesign) {
+                    <td><select [(ngModel)]="detectorByPlan[pl.id]" [ngModelOptions]="{standalone:true}">
+                      <option value="gemini-vision">IA visión (color)</option>
+                      <option value="maskrcnn">Mask R-CNN (B&N)</option>
+                      <option value="mock">mock (demo)</option>
+                    </select></td>
+                    <td><button class="btn sm" [disabled]="running()===pl.id" (click)="runDetect(pl)">
+                      {{ running()===pl.id ? 'Generando…' : 'Generar 3D' }}</button></td>
+                    <td><button class="btn sm danger" [disabled]="deleting()===pl.id" (click)="deletePlan(pl)">
+                      {{ deleting()===pl.id ? 'Eliminando…' : 'Eliminar' }}</button></td>
+                  }
                 </tr>
               }
               @if (!plans().length) { <tr><td colspan="6" class="muted">Sin planos.</td></tr> }
@@ -172,6 +181,9 @@ export class ProjectDetail implements OnInit, OnDestroy {
   private api = inject(Api);
   private route = inject(ActivatedRoute);
   auth = inject(Auth);
+
+  /** Diseñar/modelar es exclusivo del arquitecto (y superadmin). */
+  get canDesign(): boolean { return this.auth.hasRole('arquitecto'); }
 
   id!: number;
   tab = signal<'3d' | 'team'>('3d');
