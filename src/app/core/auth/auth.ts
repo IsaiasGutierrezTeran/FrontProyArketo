@@ -43,6 +43,14 @@ export class Auth {
     );
   }
 
+  /** Refresca el usuario en caché desde /auth/me (plan y rol actuales). */
+  refreshUser(): void {
+    this.http.get<{ data: User }>(`${this.base}/auth/me`).subscribe({
+      next: r => { localStorage.setItem(USER, JSON.stringify(r.data)); this.user.set(r.data); },
+      error: () => {},
+    });
+  }
+
   logout(): void {
     const refresh = this.refreshToken;
     if (refresh) this.http.post(`${this.base}/auth/logout`, { refresh }).subscribe({ error: () => {} });

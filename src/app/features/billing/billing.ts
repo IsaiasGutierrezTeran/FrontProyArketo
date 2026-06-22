@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Api } from '../../core/api';
+import { Auth } from '../../core/auth/auth';
 import { Subscription, SubscriptionPlan } from '../../core/models';
 
 @Component({
@@ -38,6 +39,7 @@ import { Subscription, SubscriptionPlan } from '../../core/models';
 })
 export class Billing implements OnInit {
   private api = inject(Api);
+  private auth = inject(Auth);
   plans = signal<SubscriptionPlan[]>([]);
   sub = signal<Subscription | null>(null);
   busy = signal(false);
@@ -60,12 +62,13 @@ export class Billing implements OnInit {
         if (s.checkout_url) { window.location.href = s.checkout_url; return; }
         this.msg.set(`Plan ${p.name} activado.`);
         this.refreshSub();
+        this.auth.refreshUser();  // refleja el nuevo plan en la UI sin re-login
       },
       error: () => this.busy.set(false),
     });
   }
 
   cancel(): void {
-    this.api.post<Subscription>('/billing/cancel', {}).subscribe(() => { this.msg.set('Suscripción cancelada.'); this.refreshSub(); });
+    this.api.post<Subscription>('/billing/cancel', {}).subscribe(() => { this.msg.set('Suscripción cancelada.'); this.refreshSub(); this.auth.refreshUser(); });
   }
 }

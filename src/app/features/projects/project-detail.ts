@@ -149,7 +149,7 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
                 <button class="btn sm" [disabled]="inviteUserId == null">Invitar</button>
               </form>
             } @else {
-              <p class="muted" style="margin-top:0">La colaboración requiere el plan <strong>Enterprise</strong>. <a routerLink="/billing">Mejora tu plan</a> para invitar colaboradores.</p>
+              <p class="muted" style="margin-top:0">La colaboración requiere el plan <strong>Pro</strong> o superior. <a routerLink="/billing">Mejora tu plan</a> para invitar colaboradores.</p>
             }
             @if (teamError()) { <div class="alert">{{ teamError() }}</div> }
             <table>
@@ -189,9 +189,10 @@ export class ProjectDetail implements OnInit, OnDestroy {
   /** Diseñar/modelar es exclusivo del arquitecto (y superadmin). */
   get canDesign(): boolean { return this.auth.hasRole('arquitecto'); }
 
-  /** Invitar colaboradores requiere plan Enterprise (superadmin siempre puede). */
+  /** Invitar colaboradores requiere plan Pro o superior (superadmin siempre puede). */
   get canInvite(): boolean {
-    return this.auth.hasRole('superadmin') || this.auth.user()?.subscription_plan === 'enterprise';
+    const plan = this.auth.user()?.subscription_plan;
+    return this.auth.hasRole('superadmin') || plan === 'pro' || plan === 'enterprise';
   }
 
   id!: number;

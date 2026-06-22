@@ -83,6 +83,8 @@ export class Shell implements OnInit {
   inviteCount = signal(0);
 
   ngOnInit(): void {
+    // Refresca plan/rol por si cambiaron desde el último login (p. ej. nueva suscripción).
+    this.auth.refreshUser();
     // Pendientes de aceptar, para el badge del nav.
     this.api.get<Invitation[]>('/invitations/').subscribe({
       next: i => this.inviteCount.set(i.length),
