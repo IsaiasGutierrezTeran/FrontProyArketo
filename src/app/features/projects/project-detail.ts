@@ -130,23 +130,27 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
         @if (tab() === 'team') {
           <div class="card" style="margin-bottom:16px">
             <h3>Colaboradores</h3>
-            <p class="muted" style="margin-top:0">Elige un usuario de la lista e invítalo; recibirá la invitación y deberá aceptarla para colaborar.</p>
-            <form class="row wrap" (ngSubmit)="invite()">
-              @if (assignable().length) {
-                <select class="input" style="width:auto; flex:1" name="user" [(ngModel)]="inviteUserId">
-                  <option [ngValue]="null">— elige un usuario —</option>
-                  @for (u of assignable(); track u.id) {
-                    <option [ngValue]="u.id">{{ u.full_name || u.email }} · {{ u.role }}</option>
-                  }
+            @if (canInvite) {
+              <p class="muted" style="margin-top:0">Elige un usuario de la lista e invítalo; recibirá la invitación y deberá aceptarla para colaborar.</p>
+              <form class="row wrap" (ngSubmit)="invite()">
+                @if (assignable().length) {
+                  <select class="input" style="width:auto; flex:1" name="user" [(ngModel)]="inviteUserId">
+                    <option [ngValue]="null">— elige un usuario —</option>
+                    @for (u of assignable(); track u.id) {
+                      <option [ngValue]="u.id">{{ u.full_name || u.email }} · {{ u.role }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="muted" style="flex:1; align-self:center">No hay usuarios disponibles para invitar.</span>
+                }
+                <select [(ngModel)]="inviteRole" name="role" style="width:auto">
+                  <option value="editor">editor</option><option value="viewer">lector</option>
                 </select>
-              } @else {
-                <span class="muted" style="flex:1; align-self:center">No hay usuarios disponibles para invitar.</span>
-              }
-              <select [(ngModel)]="inviteRole" name="role" style="width:auto">
-                <option value="editor">editor</option><option value="viewer">lector</option>
-              </select>
-              <button class="btn sm" [disabled]="inviteUserId == null">Invitar</button>
-            </form>
+                <button class="btn sm" [disabled]="inviteUserId == null">Invitar</button>
+              </form>
+            } @else {
+              <p class="muted" style="margin-top:0">La colaboración requiere el plan <strong>Enterprise</strong>. <a routerLink="/billing">Mejora tu plan</a> para invitar colaboradores.</p>
+            }
             @if (teamError()) { <div class="alert">{{ teamError() }}</div> }
             <table>
               @for (m of members(); track m.id) {
@@ -184,6 +188,11 @@ export class ProjectDetail implements OnInit, OnDestroy {
 
   /** Diseñar/modelar es exclusivo del arquitecto (y superadmin). */
   get canDesign(): boolean { return this.auth.hasRole('arquitecto'); }
+
+  /** Invitar colaboradores requiere plan Enterprise (superadmin siempre puede). */
+  get canInvite(): boolean {
+    return this.auth.hasRole('superadmin') || this.auth.user()?.subscription_plan === 'enterprise';
+  }
 
   id!: number;
   tab = signal<'3d' | 'team'>('3d');

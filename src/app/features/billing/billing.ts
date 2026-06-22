@@ -22,7 +22,7 @@ import { Subscription, SubscriptionPlan } from '../../core/models';
       <div class="grid cols-3">
         @for (p of plans(); track p.id) {
           <div class="card plan" [class.current]="sub()?.plan_code === p.code">
-            <div class="row spread"><h3 style="margin:0">{{ p.name }}</h3><strong>\${{ p.price }}/{{ p.interval }}</strong></div>
+            <div class="row spread"><h3 style="margin:0">{{ p.name }}</h3><strong>Bs {{ p.price }}/{{ p.interval === 'year' ? 'año' : 'mes' }}</strong></div>
             <ul class="muted" style="padding-left:18px">
               @for (f of p.features; track f) { <li>{{ f }}</li> }
             </ul>
