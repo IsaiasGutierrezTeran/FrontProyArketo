@@ -99,9 +99,9 @@ interface Turn { role: 'user' | 'ai'; text: string; result?: TurnResult; }
             <textarea [(ngModel)]="prompt" name="prompt" rows="1" placeholder="Escribe tu plano…  (ej: casa de 8 × 6 con 3 dormitorios y garaje)" (keydown)="onKey($event)"></textarea>
           </div>
           <select class="pill" [(ngModel)]="provider" name="provider" title="Proveedor de IA">
+            <option value="mock">Rápido</option>
             <option value="gemini">IA (Gemini)</option>
             <option value="aws">IA (AWS)</option>
-            <option value="mock">Rápido</option>
           </select>
           <button class="iconbtn" [class.rec]="recording()" type="button" [title]="recording() ? 'Detener dictado' : 'Dictar por voz'" (click)="toggleRec()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
@@ -128,7 +128,7 @@ export class AiDesign implements OnInit, OnDestroy {
 
   projects = signal<Project[]>([]);
   project: number | null = null;
-  provider = 'gemini';                 // IA real por defecto (Gemini está configurada)
+  provider = 'mock';                   // Rápido por defecto (fiable). IA real opcional (con fallback).
   prompt = '';
   feed = signal<Turn[]>([]);
   planUrls = signal<Record<number, string>>({});
