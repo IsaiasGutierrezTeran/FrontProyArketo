@@ -2,10 +2,11 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Api } from '../../core/api';
 import { DashboardSummary } from '../../core/models';
+import { EstadoPipe } from '../../core/estado.pipe';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink],
+  imports: [RouterLink, EstadoPipe],
   styles: [`
     .stat { text-align: center; }
     .stat .n { font-size: 2rem; font-weight: 700; }
@@ -30,7 +31,7 @@ import { DashboardSummary } from '../../core/models';
               <a class="card" [routerLink]="['/projects', p.id]">
                 <div class="row spread">
                   <strong>{{ p.name }}</strong>
-                  <span class="badge" [class]="p.status">{{ p.status }}</span>
+                  <span class="badge" [class]="p.status">{{ p.status | estado }}</span>
                 </div>
                 <div class="muted" style="margin-top:6px">{{ p.description || 'Sin descripción' }}</div>
               </a>

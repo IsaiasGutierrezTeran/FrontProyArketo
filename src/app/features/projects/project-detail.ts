@@ -5,10 +5,11 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
 import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project } from '../../core/models';
+import { EstadoPipe } from '../../core/estado.pipe';
 
 @Component({
   selector: 'app-project-detail',
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe],
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, EstadoPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA], // allow <model-viewer>
   styles: [`
     .tabs { display: flex; gap: 4px; margin: 14px 0; border-bottom: 1px solid var(--border); }
@@ -24,7 +25,7 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
       @if (project(); as p) {
         <div class="row spread" style="margin:8px 0 0">
           <h1 style="margin:0">{{ p.name }}</h1>
-          <span class="badge" [class]="p.status">{{ p.status }}</span>
+          <span class="badge" [class]="p.status">{{ p.status | estado }}</span>
         </div>
         <p class="muted">{{ p.description }}</p>
 
@@ -108,7 +109,7 @@ import { AssignableUser, Comment, DetectionJob, Member, Model3D, Plan, Project }
                     <div style="font-weight:500; word-break:break-all">{{ pl.filename || pl.original_format.toUpperCase() }}</div>
                     <div class="muted" style="font-size:.78rem">{{ pl.original_format.toUpperCase() }} · {{ (pl.size_bytes/1024) | number:'1.0-0' }} KB</div>
                   </td>
-                  <td><span class="badge" [class]="pl.status">{{ pl.status }}</span></td>
+                  <td><span class="badge" [class]="pl.status">{{ pl.status | estado }}</span></td>
                   @if (canDesign) {
                     <td><select [(ngModel)]="detectorByPlan[pl.id]" [ngModelOptions]="{standalone:true}">
                       <option value="gemini-vision">IA visión (color)</option>

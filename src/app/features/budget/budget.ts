@@ -4,12 +4,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
 import { Budget, Material, Model3D } from '../../core/models';
+import { EstadoPipe } from '../../core/estado.pipe';
 
 interface ItemRow { material: number | null; quantity: number; }
 
 @Component({
   selector: 'app-budget',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, EstadoPipe],
   template: `
     <div class="page">
       <a [routerLink]="['/projects', id]" class="muted">← Volver al proyecto</a>
@@ -66,7 +67,7 @@ interface ItemRow { material: number | null; quantity: number; }
         <div class="card" style="margin-bottom:14px">
           <div class="row spread">
             <strong>Presupuesto #{{ b.id }}</strong>
-            <span class="badge" [class]="b.status">{{ b.status }}</span>
+            <span class="badge" [class]="b.status">{{ b.status | estado }}</span>
           </div>
           <table style="margin:10px 0">
             <tr><th>Material</th><th>Cant.</th><th>P. unit.</th><th>Subtotal</th></tr>

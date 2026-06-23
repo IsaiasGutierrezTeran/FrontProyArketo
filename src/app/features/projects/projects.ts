@@ -3,10 +3,11 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Api } from '../../core/api';
 import { Project } from '../../core/models';
+import { EstadoPipe } from '../../core/estado.pipe';
 
 @Component({
   selector: 'app-projects',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, EstadoPipe],
   template: `
     <div class="page">
       <div class="row spread" style="margin-bottom:16px">
@@ -35,7 +36,7 @@ import { Project } from '../../core/models';
             <a class="card" [routerLink]="['/projects', p.id]">
               <div class="row spread">
                 <strong>{{ p.name }}</strong>
-                <span class="badge" [class]="p.status">{{ p.status }}</span>
+                <span class="badge" [class]="p.status">{{ p.status | estado }}</span>
               </div>
               <div class="muted" style="margin-top:6px">{{ p.description || 'Sin descripción' }}</div>
               <div class="muted" style="font-size:.75rem; margin-top:8px">{{ p.owner_email }}</div>

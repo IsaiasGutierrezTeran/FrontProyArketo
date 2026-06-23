@@ -3,10 +3,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Api } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
 import { Subscription, SubscriptionPlan } from '../../core/models';
+import { EstadoPipe } from '../../core/estado.pipe';
 
 @Component({
   selector: 'app-billing',
-  imports: [],
+  imports: [EstadoPipe],
   styles: [`.plan.current { border-color: var(--primary); }`],
   template: `
     <div class="page">
@@ -14,7 +15,7 @@ import { Subscription, SubscriptionPlan } from '../../core/models';
       @if (sub(); as s) {
         <div class="card" style="margin-bottom:16px">
           Plan actual: <strong>{{ s.plan_code || 'free' }}</strong>
-          <span class="badge" [class]="s.status" style="margin-left:8px">{{ s.status }}</span>
+          <span class="badge" [class]="s.status" style="margin-left:8px">{{ s.status | estado }}</span>
           @if (s.status === 'active') {
             <button class="btn ghost sm right" (click)="cancel()">Cancelar</button>
           }

@@ -3,10 +3,11 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
 import { DesignRequest, Model3D, Project } from '../../core/models';
+import { EstadoPipe } from '../../core/estado.pipe';
 
 @Component({
   selector: 'app-ai-design',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, EstadoPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   styles: [`
     .tabs { display:flex; gap:4px; margin:14px 0; border-bottom:1px solid var(--border); }
@@ -81,7 +82,7 @@ import { DesignRequest, Model3D, Project } from '../../core/models';
       <!-- Result -->
       @if (result(); as r) {
         <div class="card" style="margin-top:16px">
-          <div class="row spread"><h3 style="margin:0">Resultado</h3><span class="badge" [class]="r.status">{{ r.status }}</span></div>
+          <div class="row spread"><h3 style="margin:0">Resultado</h3><span class="badge" [class]="r.status">{{ r.status | estado }}</span></div>
           @if (r.transcript) { <p class="muted">Transcripción: "{{ r.transcript }}"</p> }
 
           <!-- Plano 2D (PNG con JWT vía blob) -->
