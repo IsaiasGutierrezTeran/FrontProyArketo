@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Api } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
 import { Subscription, SubscriptionPlan } from '../../core/models';
@@ -40,12 +41,15 @@ import { Subscription, SubscriptionPlan } from '../../core/models';
 export class Billing implements OnInit {
   private api = inject(Api);
   private auth = inject(Auth);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
   plans = signal<SubscriptionPlan[]>([]);
   sub = signal<Subscription | null>(null);
   busy = signal(false);
   msg = signal('');
 
   ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('paid') === '1') this.msg.set('✅ Pago aprobado. Plan activado.');
     this.api.page<SubscriptionPlan>('/billing/plans/').subscribe(r => this.plans.set(r.items));
     this.refreshSub();
   }
@@ -55,14 +59,15 @@ export class Billing implements OnInit {
   }
 
   subscribe(p: SubscriptionPlan): void {
+    // Plan de pago -> pantalla de checkout (pago). Plan gratis -> activación directa.
+    if (Number(p.price) > 0) { this.router.navigate(['/billing/checkout', p.code]); return; }
     this.busy.set(true); this.msg.set('');
-    this.api.post<Subscription & { checkout_url?: string }>('/billing/subscribe', { plan: p.code }).subscribe({
-      next: s => {
+    this.api.post<Subscription>('/billing/subscribe', { plan: p.code }).subscribe({
+      next: () => {
         this.busy.set(false);
-        if (s.checkout_url) { window.location.href = s.checkout_url; return; }
         this.msg.set(`Plan ${p.name} activado.`);
         this.refreshSub();
-        this.auth.refreshUser();  // refleja el nuevo plan en la UI sin re-login
+        this.auth.refreshUser();
       },
       error: () => this.busy.set(false),
     });

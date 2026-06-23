@@ -25,6 +25,7 @@ export const routes: Routes = [
       },
       { path: 'profile', loadComponent: () => import('./features/profile/profile').then(m => m.Profile) },
       { path: 'billing', loadComponent: () => import('./features/billing/billing').then(m => m.Billing) },
+      { path: 'billing/checkout/:code', loadComponent: () => import('./features/billing/checkout').then(m => m.Checkout) },
       {
         path: 'admin/users',
         canActivate: [roleGuard('superadmin')],
