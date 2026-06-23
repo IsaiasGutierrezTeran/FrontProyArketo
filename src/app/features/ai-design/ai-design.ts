@@ -38,8 +38,8 @@ interface Turn { role: 'user' | 'ai'; text: string; result?: DesignRequest; }
                display:grid; place-items:center; flex:none; }
     .iconbtn:hover { background:var(--surface); color:var(--text); }
     .iconbtn.rec { color:var(--danger); background:rgba(255,80,90,.12); }
-    .pill { background:var(--surface); border:1px solid var(--border); color:var(--muted); border-radius:999px;
-            padding:6px 10px; font-size:.8rem; outline:none; }
+    .pill { flex:0 0 auto; width:auto; background:var(--surface); border:1px solid var(--border); color:var(--muted);
+            border-radius:999px; padding:6px 10px; font-size:.8rem; outline:none; max-width:150px; }
     .send { background:var(--primary); color:#fff; }
     .send:hover { background:var(--primary-2); color:#fff; }
     .send:disabled { opacity:.45; cursor:default; }
