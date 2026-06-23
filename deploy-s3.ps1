@@ -13,11 +13,17 @@
   Uso:
     ./deploy-s3.ps1 -Bucket nombre-de-tu-bucket
     ./deploy-s3.ps1 -Bucket mi-bucket -Profile arketo -Region us-east-1
+
+  Deploy actual de Arketo (S3 privado + CloudFront OAC):
+    ./deploy-s3.ps1 -Bucket arketo -Profile arketo -DistributionId E2RZNKY9KTZGSQ
+  Front en vivo: https://d3fs77bs4fvh0.cloudfront.net
 #>
 param(
   [Parameter(Mandatory = $true)] [string]$Bucket,
   [string]$Profile = "",
-  [string]$Region = "us-east-1"
+  [string]$Region = "us-east-1",
+  # Si se pasa, invalida la cache de CloudFront tras el sync (refresca index.html).
+  [string]$DistributionId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,6 +46,16 @@ Write-Host "==> Sincronizando $dist -> s3://$Bucket ..." -ForegroundColor Cyan
 aws s3 sync $dist "s3://$Bucket" --delete --exclude "index.html" `
   --cache-control "public,max-age=31536000,immutable" --region $Region @profileArg
 aws s3 cp (Join-Path $dist "index.html") "s3://$Bucket/index.html" `
-  --cache-control "no-cache" --region $Region @profileArg
+  --cache-control "no-cache" --content-type "text/html" --region $Region @profileArg
 
-Write-Host "==> Listo. (Si usas CloudFront, invalida la distribución para refrescar index.html.)" -ForegroundColor Green
+if ($DistributionId) {
+  Write-Host "==> Invalidando cache de CloudFront ($DistributionId)..." -ForegroundColor Cyan
+  aws cloudfront create-invalidation --distribution-id $DistributionId `
+    --paths "/*" --region $Region @profileArg | Out-Null
+  Write-Host "==> Invalidación creada (tarda ~1-2 min en propagar)." -ForegroundColor Green
+}
+
+Write-Host "==> Listo." -ForegroundColor Green
+if (-not $DistributionId) {
+  Write-Host "    (Pasa -DistributionId <id> para invalidar CloudFront y refrescar index.html.)" -ForegroundColor DarkGray
+}

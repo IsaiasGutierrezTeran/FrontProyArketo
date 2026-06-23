@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
 import { Auth } from '../../core/auth/auth';
-import { Budget, Material } from '../../core/models';
+import { Budget, Material, Model3D } from '../../core/models';
 
 interface ItemRow { material: number | null; quantity: number; }
 
@@ -14,6 +14,19 @@ interface ItemRow { material: number | null; quantity: number; }
     <div class="page">
       <a [routerLink]="['/projects', id]" class="muted">← Volver al proyecto</a>
       <h1>Presupuesto de obra</h1>
+
+      <!-- Estimación automática desde el modelo 3D (cómputo métrico) -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="row spread">
+          <div>
+            <strong>Estimar desde el modelo 3D</strong>
+            <div class="muted" style="font-size:.82rem">Calcula materiales y cantidades a partir de la geometría (muros, piso, aberturas) y crea un borrador en Bs.</div>
+          </div>
+          <button class="btn sm" [disabled]="!modelId() || estimating()" (click)="estimate()">
+            {{ estimating() ? 'Estimando…' : 'Estimar' }}</button>
+        </div>
+        @if (!modelId()) { <div class="muted" style="font-size:.8rem; margin-top:6px">Genera primero el modelo 3D del proyecto para poder estimar.</div> }
+      </div>
 
       <!-- New budget -->
       <form class="card" style="margin-bottom:18px" (ngSubmit)="create()">
@@ -26,7 +39,7 @@ interface ItemRow { material: number | null; quantity: number; }
                 <select [(ngModel)]="row.material" [ngModelOptions]="{standalone:true}">
                   <option [ngValue]="null" disabled>Elegir material…</option>
                   @for (m of materials(); track m.id) {
-                    <option [ngValue]="m.id">{{ m.name }} — \${{ m.unit_price }}/{{ m.unit }} ({{ m.block_quality }})</option>
+                    <option [ngValue]="m.id">{{ m.name }} — Bs {{ m.unit_price }}/{{ m.unit }} ({{ m.block_quality }})</option>
                   }
                 </select>
               </td>
@@ -58,11 +71,11 @@ interface ItemRow { material: number | null; quantity: number; }
           <table style="margin:10px 0">
             <tr><th>Material</th><th>Cant.</th><th>P. unit.</th><th>Subtotal</th></tr>
             @for (it of b.items; track it.id) {
-              <tr><td>{{ it.material_name }}</td><td>{{ it.quantity }}</td><td>\${{ it.unit_price_snapshot }}</td><td>\${{ it.subtotal }}</td></tr>
+              <tr><td>{{ it.material_name }}</td><td>{{ it.quantity }}</td><td>Bs {{ it.unit_price_snapshot }}</td><td>Bs {{ it.subtotal }}</td></tr>
             }
           </table>
-          <div class="muted">Materiales: \${{ b.materials_cost }} · Mano de obra ({{ b.labor_people }} pers.): \${{ b.labor_cost }}
-            · <strong style="color:var(--text)">Total: \${{ b.total }} {{ b.currency }}</strong></div>
+          <div class="muted">Materiales: Bs {{ b.materials_cost }} · Mano de obra ({{ b.labor_people }} pers.): Bs {{ b.labor_cost }}
+            · <strong style="color:var(--text)">Total: {{ b.total }} {{ b.currency }}</strong></div>
 
           @if (b.review) {
             <div class="alert" [class.ok]="b.review.decision==='approved'" style="margin-top:10px">
@@ -106,6 +119,18 @@ export class BudgetScreen implements OnInit {
   saving = signal(false);
   error = signal('');
   pdfBusy = signal<number | null>(null);
+  modelId = signal<number | null>(null);   // modelo 3D actual del proyecto (para estimar)
+  estimating = signal(false);
+
+  estimate(): void {
+    const mid = this.modelId();
+    if (!mid) return;
+    this.estimating.set(true); this.error.set('');
+    this.api.post<Budget>('/budgets/estimate/', { model3d: mid }).subscribe({
+      next: b => { this.budgets.update(l => [b, ...l]); this.estimating.set(false); },
+      error: e => { this.error.set(apiErrMsg(e, 'No se pudo estimar.')); this.estimating.set(false); },
+    });
+  }
 
   downloadPdf(b: Budget): void {
     this.pdfBusy.set(b.id);
@@ -124,6 +149,11 @@ export class BudgetScreen implements OnInit {
   ngOnInit(): void {
     this.id = Number(this.route.snapshot.paramMap.get('id'));
     this.api.page<Material>('/materials/', { page_size: 100 }).subscribe(r => this.materials.set(r.items));
+    // Modelo 3D actual del proyecto, para habilitar la estimación.
+    this.api.page<Model3D>('/models3d/', { project: this.id }).subscribe({
+      next: r => { const cur = r.items.find(m => m.is_current) || r.items[0]; this.modelId.set(cur?.id ?? null); },
+      error: () => {},
+    });
     this.load();
   }
 
