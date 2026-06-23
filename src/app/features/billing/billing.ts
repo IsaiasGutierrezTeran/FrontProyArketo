@@ -49,7 +49,7 @@ export class Billing implements OnInit {
   msg = signal('');
 
   ngOnInit(): void {
-    if (this.route.snapshot.queryParamMap.get('paid') === '1') this.msg.set('✅ Pago aprobado. Plan activado.');
+    if (this.route.snapshot.queryParamMap.get('paid') === '1') this.msg.set('Pago aprobado. Plan activado.');
     this.api.page<SubscriptionPlan>('/billing/plans/').subscribe(r => this.plans.set(r.items));
     this.refreshSub();
   }
