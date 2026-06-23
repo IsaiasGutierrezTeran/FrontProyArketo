@@ -30,6 +30,12 @@ import { ApiError } from '../../core/api';
         <input class="input" type="email" name="email" [(ngModel)]="email" required>
         <label>Teléfono (opcional)</label>
         <input class="input" name="phone" [(ngModel)]="phone">
+        <label>Rol</label>
+        <select class="input" name="role" [(ngModel)]="role">
+          <option value="cliente">Cliente</option>
+          <option value="arquitecto">Arquitecto</option>
+          <option value="ingeniero">Ingeniero</option>
+        </select>
         <label>Contraseña</label>
         <input class="input" type="password" name="password" [(ngModel)]="password" required>
         <button class="btn" style="width:100%; margin-top:16px; justify-content:center" [disabled]="loading()">
@@ -50,6 +56,7 @@ export class Register {
   email = '';
   phone = '';
   password = '';
+  role = 'cliente';
   loading = signal(false);
   error = signal('');
   ok = signal(false);
@@ -57,7 +64,7 @@ export class Register {
   submit(): void {
     this.error.set('');
     this.loading.set(true);
-    this.auth.register({ email: this.email, password: this.password, full_name: this.full_name, phone: this.phone }).subscribe({
+    this.auth.register({ email: this.email, password: this.password, full_name: this.full_name, phone: this.phone, role: this.role }).subscribe({
       next: () => {
         this.ok.set(true);
         setTimeout(() => this.router.navigate(['/login']), 900);

@@ -26,7 +26,7 @@ export class Auth {
       .pipe(map(r => r.data), tap(d => this.setSession(d)), map(d => d.user));
   }
 
-  register(body: { email: string; password: string; full_name?: string; phone?: string }): Observable<User> {
+  register(body: { email: string; password: string; full_name?: string; phone?: string; role?: string }): Observable<User> {
     return this.http.post<{ data: User }>(`${this.base}/auth/register`, body).pipe(map(r => r.data));
   }
 
