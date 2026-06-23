@@ -30,9 +30,10 @@ interface Turn { role: 'user' | 'ai'; text: string; result?: DesignRequest; }
     .bar.rec { border-color:var(--danger); }
     .attach { display:flex; align-items:center; gap:8px; font-size:.82rem; color:var(--muted); padding:2px 4px 8px; }
     .attach button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; }
-    .barrow { display:flex; align-items:flex-end; gap:6px; }
-    .barrow textarea { flex:1; background:none; border:none; color:var(--text); resize:none; font:inherit; outline:none;
-                       max-height:160px; padding:8px 4px; line-height:1.4; }
+    .barrow { display:flex; align-items:center; gap:6px; }
+    .barrow .field { flex:1 1 auto; min-width:0; }
+    .barrow textarea { width:100%; display:block; background:none; border:none; color:var(--text); resize:none; font:inherit; outline:none;
+                       max-height:160px; min-height:24px; padding:8px 4px; line-height:1.4; }
     .iconbtn { background:none; border:none; color:var(--muted); cursor:pointer; width:38px; height:38px; border-radius:50%;
                display:grid; place-items:center; flex:none; }
     .iconbtn:hover { background:var(--surface); color:var(--text); }
@@ -89,27 +90,23 @@ interface Turn { role: 'user' | 'ai'; text: string; result?: DesignRequest; }
 
       <!-- Barra unificada -->
       <div class="bar" [class.rec]="recording()">
-        @if (file) {
-          <div class="attach">Audio adjunto: {{ file.name }} <button type="button" (click)="file=null" title="Quitar">✕</button></div>
-        }
         <div class="barrow">
-          <button class="iconbtn" type="button" title="Adjuntar audio" (click)="clip.click()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.49-8.49"/></svg>
-          </button>
-          <input #clip type="file" accept="audio/*" hidden (change)="pick($event)">
-          <textarea [(ngModel)]="prompt" name="prompt" rows="1" placeholder="Describe tu plano…  (ej: casa de 8 × 6 con 3 dormitorios y garaje)" (keydown)="onKey($event)"></textarea>
+          <div class="field">
+            <textarea [(ngModel)]="prompt" name="prompt" rows="1" placeholder="Escribe tu plano…  (ej: casa de 8 × 6 con 3 dormitorios y garaje)" (keydown)="onKey($event)"></textarea>
+          </div>
           <select class="pill" [(ngModel)]="provider" name="provider" title="Proveedor de IA">
             <option value="mock">Rápido</option>
             <option value="gemini">IA (Gemini)</option>
             <option value="aws">IA (AWS)</option>
           </select>
-          <button class="iconbtn" [class.rec]="recording()" type="button" title="Grabar voz" (click)="toggleRec()">
+          <button class="iconbtn" [class.rec]="recording()" type="button" [title]="recording() ? 'Detener dictado' : 'Dictar por voz'" (click)="toggleRec()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
           </button>
-          <button class="iconbtn send" type="button" title="Enviar" [disabled]="busy() || (!prompt.trim() && !file)" (click)="send()">
+          <button class="iconbtn send" type="button" title="Enviar" [disabled]="busy() || !prompt.trim()" (click)="send()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
           </button>
         </div>
+        @if (recording()) { <div class="attach">Escuchando… habla y se irá escribiendo. Toca el micrófono para detener.</div> }
       </div>
 
       <div class="below">
@@ -129,7 +126,6 @@ export class AiDesign implements OnInit, OnDestroy {
   project: number | null = null;
   provider = 'mock';
   prompt = '';
-  file: File | null = null;
   feed = signal<Turn[]>([]);
   planUrls = signal<Record<number, string>>({});
   busy = signal(false);
@@ -144,8 +140,8 @@ export class AiDesign implements OnInit, OnDestroy {
   ];
 
   private objectUrls: string[] = [];
-  private rec?: MediaRecorder;
-  private chunks: BlobPart[] = [];
+  private sr: any;            // SpeechRecognition (dictado por voz del navegador)
+  private basePrompt = '';
 
   ngOnInit(): void {
     this.api.page<Project>('/projects/', { page_size: 100 }).subscribe(r => this.projects.set(r.items));
@@ -153,7 +149,7 @@ export class AiDesign implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.objectUrls.forEach(u => URL.revokeObjectURL(u));
-    try { this.rec?.stop(); } catch { /* noop */ }
+    try { this.sr?.stop(); } catch { /* noop */ }
   }
 
   useSuggestion(s: string): void { this.prompt = s; this.send(); }
@@ -162,34 +158,14 @@ export class AiDesign implements OnInit, OnDestroy {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
   }
 
-  pick(e: Event): void {
-    this.file = (e.target as HTMLInputElement).files?.[0] || null;
-  }
-
   send(): void {
     if (this.busy()) return;
-    if (this.file) { this.runAudio(); return; }
     const p = this.prompt.trim();
     if (!p) return;
     this.prompt = '';
     this.feed.update(f => [...f, { role: 'user', text: p }]);
     this.busy.set(true); this.error.set('');
     this.api.post<DesignRequest>('/ai-design/text', { prompt: p, project: this.project, provider: this.provider }).subscribe({
-      next: r => this.onResult(r),
-      error: e => this.onErr(e),
-    });
-  }
-
-  private runAudio(): void {
-    const f = this.file!;
-    this.file = null;
-    this.feed.update(x => [...x, { role: 'user', text: `Audio: ${f.name}` }]);
-    this.busy.set(true); this.error.set('');
-    const fd = new FormData();
-    fd.append('audio', f);
-    if (this.project) fd.append('project', String(this.project));
-    fd.append('provider', this.provider);
-    this.api.postForm<DesignRequest>('/ai-design/audio', fd).subscribe({
       next: r => this.onResult(r),
       error: e => this.onErr(e),
     });
@@ -245,24 +221,28 @@ export class AiDesign implements OnInit, OnDestroy {
     });
   }
 
-  /** Graba voz con el micrófono; al detener, genera desde ese audio. */
-  async toggleRec(): Promise<void> {
-    if (this.recording()) { try { this.rec?.stop(); } catch { /* noop */ } return; }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.chunks = [];
-      this.rec = new MediaRecorder(stream);
-      this.rec.ondataavailable = ev => { if (ev.data.size) this.chunks.push(ev.data); };
-      this.rec.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
-        this.recording.set(false);
-        this.file = new File([new Blob(this.chunks, { type: 'audio/webm' })], 'grabacion.webm', { type: 'audio/webm' });
-        this.runAudio();
-      };
-      this.rec.start();
-      this.recording.set(true);
-    } catch {
-      this.error.set('No se pudo acceder al micrófono. Revisa los permisos del navegador.');
+  /** Dictado por voz REAL del navegador: escribe en el cuadro lo que dices. */
+  toggleRec(): void {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      this.error.set('Tu navegador no soporta dictado por voz (usa Chrome). Escribe el plano en el cuadro.');
+      return;
     }
+    if (this.recording()) { try { this.sr?.stop(); } catch { /* noop */ } return; }
+    const sr = new SR();
+    this.sr = sr;
+    sr.lang = 'es-ES';
+    sr.continuous = true;
+    sr.interimResults = true;
+    this.basePrompt = this.prompt.trim() ? this.prompt.trim() + ' ' : '';
+    sr.onresult = (ev: any) => {
+      let text = '';
+      for (let i = 0; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+      this.prompt = (this.basePrompt + text).replace(/\s+/g, ' ').trim();
+    };
+    sr.onerror = () => { this.recording.set(false); this.error.set('No se pudo usar el dictado. Revisa el permiso del micrófono.'); };
+    sr.onend = () => this.recording.set(false);
+    try { sr.start(); this.recording.set(true); this.error.set(''); }
+    catch { this.recording.set(false); }
   }
 }
