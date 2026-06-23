@@ -206,14 +206,30 @@ export class AiDesign implements OnInit, OnDestroy {
     this.feed.set([]);
     this.assistantId = null;
     try { localStorage.removeItem(this.STORE); } catch { /* noop */ }
+    this.api.put('/ai-design/conversation', { turns: [] }).subscribe({ next: () => {}, error: () => {} });
   }
 
   private persist(): void {
-    try { localStorage.setItem(this.STORE, JSON.stringify({ assistantId: this.assistantId, turns: this.feed() })); }
+    const turns = this.feed();
+    // 1) caché local (rápida)  2) base de datos del servidor (AWS) para que persista
+    try { localStorage.setItem(this.STORE, JSON.stringify({ assistantId: this.assistantId, turns })); }
     catch { /* almacenamiento no disponible */ }
+    this.api.put('/ai-design/conversation', { turns }).subscribe({ next: () => {}, error: () => {} });
   }
 
+  /** Carga el historial: primero del servidor (BD); si falla, del navegador. */
   private restore(): void {
+    this.api.get<{ turns: Turn[] }>('/ai-design/conversation').subscribe({
+      next: r => {
+        const turns = (r?.turns || []) as Turn[];
+        if (turns.length) { this.feed.set(turns); turns.forEach(t => { if (t.result?.model) this.loadPlanPng(t.result.model); }); }
+        else this.restoreLocal();
+      },
+      error: () => this.restoreLocal(),
+    });
+  }
+
+  private restoreLocal(): void {
     try {
       const raw = localStorage.getItem(this.STORE);
       if (!raw) return;

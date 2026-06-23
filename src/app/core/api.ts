@@ -53,6 +53,10 @@ export class Api {
     return this.http.patch<Envelope<T>>(this.base + path, body).pipe(map(r => r.data), catchError(this.fail));
   }
 
+  put<T>(path: string, body: any): Observable<T> {
+    return this.http.put<Envelope<T>>(this.base + path, body).pipe(map(r => r?.data as T), catchError(this.fail));
+  }
+
   delete<T>(path: string): Observable<T> {
     return this.http.delete<Envelope<T>>(this.base + path).pipe(map(r => r?.data), catchError(this.fail));
   }
