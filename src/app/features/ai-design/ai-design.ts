@@ -2,9 +2,10 @@ import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit, inject, signal } 
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Api, apiErrMsg } from '../../core/api';
-import { DesignRequest, Model3D, Project } from '../../core/models';
+import { DesignRequest, Project } from '../../core/models';
 
-interface Turn { role: 'user' | 'ai'; text: string; result?: DesignRequest; }
+interface TurnResult { status: string; project: number | null; model: { id: number; glb_url: string | null; element_count: number } | null; }
+interface Turn { role: 'user' | 'ai'; text: string; result?: TurnResult; }
 
 @Component({
   selector: 'app-ai-design',
@@ -48,9 +49,12 @@ interface Turn { role: 'user' | 'ai'; text: string; result?: DesignRequest; }
   `],
   template: `
     <div class="page ai">
-      <div>
-        <h1 style="margin:0">Diseñar con IA</h1>
-        <p class="muted" style="margin:.2rem 0 0">Describe tu plano en una frase, por voz o adjuntando un audio. La IA genera el plano 2D y el modelo 3D, y te guía para ajustarlo.</p>
+      <div class="row spread" style="align-items:flex-start">
+        <div>
+          <h1 style="margin:0">Diseñar con IA</h1>
+          <p class="muted" style="margin:.2rem 0 0">Escribe o dicta tu plano y la IA genera el 2D y 3D. También puedes preguntarle cosas; el historial se guarda.</p>
+        </div>
+        @if (feed().length) { <button class="btn ghost sm" (click)="newChat()">Nuevo chat</button> }
       </div>
 
       @if (error()) { <div class="alert">{{ error() }}</div> }
@@ -95,9 +99,9 @@ interface Turn { role: 'user' | 'ai'; text: string; result?: DesignRequest; }
             <textarea [(ngModel)]="prompt" name="prompt" rows="1" placeholder="Escribe tu plano…  (ej: casa de 8 × 6 con 3 dormitorios y garaje)" (keydown)="onKey($event)"></textarea>
           </div>
           <select class="pill" [(ngModel)]="provider" name="provider" title="Proveedor de IA">
-            <option value="mock">Rápido</option>
             <option value="gemini">IA (Gemini)</option>
             <option value="aws">IA (AWS)</option>
+            <option value="mock">Rápido</option>
           </select>
           <button class="iconbtn" [class.rec]="recording()" type="button" [title]="recording() ? 'Detener dictado' : 'Dictar por voz'" (click)="toggleRec()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
@@ -124,7 +128,7 @@ export class AiDesign implements OnInit, OnDestroy {
 
   projects = signal<Project[]>([]);
   project: number | null = null;
-  provider = 'mock';
+  provider = 'gemini';                 // IA real por defecto (Gemini está configurada)
   prompt = '';
   feed = signal<Turn[]>([]);
   planUrls = signal<Record<number, string>>({});
@@ -132,6 +136,7 @@ export class AiDesign implements OnInit, OnDestroy {
   error = signal('');
   pdfBusy = signal(false);
   recording = signal(false);
+  assistantId: number | null = null;   // hilo de conversación del asistente
 
   suggestions = [
     'Casa de 8 × 6 m con 3 dormitorios, 2 baños, sala, comedor y cocina',
@@ -142,9 +147,11 @@ export class AiDesign implements OnInit, OnDestroy {
   private objectUrls: string[] = [];
   private sr: any;            // SpeechRecognition (dictado por voz del navegador)
   private basePrompt = '';
+  private readonly STORE = 'arketo.aidesign';
 
   ngOnInit(): void {
     this.api.page<Project>('/projects/', { page_size: 100 }).subscribe(r => this.projects.set(r.items));
+    this.restore();
   }
 
   ngOnDestroy(): void {
@@ -163,18 +170,68 @@ export class AiDesign implements OnInit, OnDestroy {
     const p = this.prompt.trim();
     if (!p) return;
     this.prompt = '';
-    this.feed.update(f => [...f, { role: 'user', text: p }]);
+    this.pushTurn({ role: 'user', text: p });
     this.busy.set(true); this.error.set('');
-    this.api.post<DesignRequest>('/ai-design/text', { prompt: p, project: this.project, provider: this.provider }).subscribe({
-      next: r => this.onResult(r),
-      error: e => this.onErr(e),
-    });
+    if (this.looksLikeDesign(p)) {
+      this.api.post<DesignRequest>('/ai-design/text', { prompt: p, project: this.project, provider: this.provider }).subscribe({
+        next: r => this.onResult(r),
+        error: e => this.onErr(e),
+      });
+    } else {
+      // Pregunta / charla: el asistente responde (NO genera un plano).
+      this.api.post<DesignRequest>('/ai-design/assistant', { message: p, request: this.assistantId, project: this.project, provider: this.provider }).subscribe({
+        next: r => {
+          this.assistantId = r.id;
+          const msgs = (r.result?.messages || []) as { role: string; content: string }[];
+          const reply = [...msgs].reverse().find(m => m.role === 'assistant')?.content
+            || 'Dime medidas y ambientes (ej. "casa de 8 × 6 con 3 dormitorios") y te genero el plano.';
+          this.pushTurn({ role: 'ai', text: reply });
+          this.busy.set(false);
+        },
+        error: e => this.onErr(e),
+      });
+    }
+  }
+
+  /** ¿El mensaje pide diseñar un plano (genera) o es una pregunta (responde)? */
+  private looksLikeDesign(p: string): boolean {
+    const t = p.toLowerCase();
+    if (/\d+\s*(x|por|×|m\b|m2|m²|metros)/.test(t)) return true;
+    return /\b(casa|plano|departamento|dise[nñ]|gener|construye|dormitor|habitaci|cuarto|rec[aá]mara|ba[nñ]o|cocina|sala|comedor|garaje|garage|ambiente|vivienda|lavander)/.test(t);
+  }
+
+  private pushTurn(t: Turn): void { this.feed.update(f => [...f, t]); this.persist(); }
+
+  newChat(): void {
+    this.feed.set([]);
+    this.assistantId = null;
+    try { localStorage.removeItem(this.STORE); } catch { /* noop */ }
+  }
+
+  private persist(): void {
+    try { localStorage.setItem(this.STORE, JSON.stringify({ assistantId: this.assistantId, turns: this.feed() })); }
+    catch { /* almacenamiento no disponible */ }
+  }
+
+  private restore(): void {
+    try {
+      const raw = localStorage.getItem(this.STORE);
+      if (!raw) return;
+      const data = JSON.parse(raw) as { assistantId?: number | null; turns?: Turn[] };
+      this.assistantId = data.assistantId ?? null;
+      const turns = data.turns || [];
+      this.feed.set(turns);
+      turns.forEach(t => { if (t.result?.model) this.loadPlanPng(t.result.model); });
+    } catch { /* historial corrupto: ignorar */ }
   }
 
   private onResult(r: DesignRequest): void {
     this.busy.set(false);
-    if (r.transcript) this.feed.update(f => [...f, { role: 'ai', text: `Escuché: "${r.transcript}"` }]);
-    this.feed.update(f => [...f, { role: 'ai', text: this.explain(r), result: r }]);
+    const result: TurnResult = {
+      status: r.status, project: r.project,
+      model: r.model ? { id: r.model.id, glb_url: r.model.glb_url, element_count: r.model.element_count } : null,
+    };
+    this.pushTurn({ role: 'ai', text: this.explain(r), result });
     if (r.model) this.loadPlanPng(r.model);
   }
 
@@ -195,7 +252,7 @@ export class AiDesign implements OnInit, OnDestroy {
     return parts.join(' ');
   }
 
-  private loadPlanPng(model: Model3D): void {
+  private loadPlanPng(model: { id: number }): void {
     this.api.blob(`/models3d/${model.id}/plan.png/`).subscribe({
       next: b => {
         const u = URL.createObjectURL(b);
@@ -206,7 +263,7 @@ export class AiDesign implements OnInit, OnDestroy {
     });
   }
 
-  downloadPdf(model: Model3D): void {
+  downloadPdf(model: { id: number }): void {
     this.pdfBusy.set(true);
     this.api.blob(`/models3d/${model.id}/plan.pdf/`).subscribe({
       next: b => {
