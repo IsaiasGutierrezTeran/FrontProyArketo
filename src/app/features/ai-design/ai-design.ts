@@ -185,7 +185,8 @@ export class AiDesign implements OnInit, OnDestroy {
           const msgs = (r.result?.messages || []) as { role: string; content: string }[];
           const reply = [...msgs].reverse().find(m => m.role === 'assistant')?.content
             || 'Dime medidas y ambientes (ej. "casa de 8 × 6 con 3 dormitorios") y te genero el plano.';
-          this.pushTurn({ role: 'ai', text: reply });
+          const note = (r.provider || '').includes('->mock') ? 'Aviso: la IA externa no estaba disponible, te responde el asistente Rápido. ' : '';
+          this.pushTurn({ role: 'ai', text: note + reply });
           this.busy.set(false);
         },
         error: e => this.onErr(e),
@@ -263,6 +264,7 @@ export class AiDesign implements OnInit, OnDestroy {
     }
     const rooms = (r.result?.scene?.rooms?.length as number) ?? 0;
     const parts = [rooms ? `Listo: generé tu plano con ${rooms} ambientes.` : 'Listo: generé tu plano.'];
+    if ((r.provider || '').includes('->mock')) parts.unshift('Aviso: la IA externa no estaba disponible, usé el generador Rápido.');
     if (!r.project) parts.push('Es una vista previa — elige abajo un proyecto destino para guardar el modelo 3D.');
     parts.push('Pídeme cambios: medidas (ej. "hazla de 10 × 8"), nº de dormitorios/baños, o agregar garaje, cocina o lavandería.');
     return parts.join(' ');
