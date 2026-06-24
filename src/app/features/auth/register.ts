@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Auth } from '../../core/auth/auth';
-import { ApiError } from '../../core/api';
+import { ApiError, apiErrMsg } from '../../core/api';
 
 @Component({
   selector: 'app-register',
@@ -38,6 +38,7 @@ import { ApiError } from '../../core/api';
         </select>
         <label>Contraseña</label>
         <input class="input" type="password" name="password" [(ngModel)]="password" required>
+        <p class="muted" style="margin:6px 0 0; font-size:.82rem">Mínimo 8 caracteres. Evita contraseñas comunes o solo números.</p>
         <button class="btn" style="width:100%; margin-top:16px; justify-content:center" [disabled]="loading()">
           {{ loading() ? 'Creando…' : 'Registrarme' }}
         </button>
@@ -70,8 +71,7 @@ export class Register {
         setTimeout(() => this.router.navigate(['/login']), 900);
       },
       error: (e: ApiError) => {
-        const d = e.detail;
-        this.error.set(typeof d === 'string' ? d : (d?.email?.[0] || d?.password?.[0] || 'No se pudo registrar.'));
+        this.error.set(apiErrMsg(e, 'No se pudo registrar. Revisa los datos.'));
         this.loading.set(false);
       },
     });
